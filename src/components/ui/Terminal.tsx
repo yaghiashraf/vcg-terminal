@@ -118,7 +118,7 @@ export const TerminalCommand: React.FC<TerminalCommandProps> = ({
       <span className="text-gray-500 text-xs mr-4">
         {timestamp.toLocaleTimeString()}
       </span>
-      <span className="text-green-400 mr-2">></span>
+      <span className="text-green-400 mr-2">&gt;</span>
       <span className="text-white font-mono">{command}</span>
     </div>
   );

@@ -295,7 +295,11 @@ export const RiskDashboard: React.FC<RiskDashboardProps> = ({
                   <div>
                     <p className="text-sm text-dark-400">95% CI Range</p>
                     <p className="text-lg font-semibold text-warning-500">
-                      {formatCurrency(monteCarloResults?.confidenceIntervals.ci95[1] - monteCarloResults?.confidenceIntervals.ci95[0] || 0)}
+                      {formatCurrency(
+                        monteCarloResults?.confidenceIntervals.ci95[1] && monteCarloResults?.confidenceIntervals.ci95[0] 
+                          ? monteCarloResults.confidenceIntervals.ci95[1] - monteCarloResults.confidenceIntervals.ci95[0] 
+                          : 0
+                      )}
                     </p>
                   </div>
                 </div>

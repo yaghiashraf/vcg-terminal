@@ -34,7 +34,7 @@ interface AnalysisParams {
   symbol: string;
   targetDecline: number;
   timeHorizon: number;
-  period: string;
+  period: '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y';
 }
 
 export const ProfessionalRiskDashboard: React.FC = () => {

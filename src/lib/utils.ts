@@ -18,7 +18,9 @@ export function formatCurrency(num: number, decimals: number = 2): string {
 }
 
 export function formatLargeNumber(num: number): string {
-  if (num >= 1e9) {
+  if (num >= 1e12) {
+    return `${(num / 1e12).toFixed(1)}T`;
+  } else if (num >= 1e9) {
     return `${(num / 1e9).toFixed(1)}B`;
   } else if (num >= 1e6) {
     return `${(num / 1e6).toFixed(1)}M`;

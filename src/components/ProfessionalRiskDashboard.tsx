@@ -6,7 +6,7 @@ import { Terminal, TerminalOutput, TerminalCommand } from '@/components/ui/Termi
 import { Controls } from '@/components/ui/Controls';
 import { AdvancedRiskEngine, MarketData, RiskMetrics, MonteCarloResult } from '@/lib/models/RiskModels';
 import { marketDataService } from '@/lib/api/marketData';
-import { formatNumber, formatPercent, formatCurrency, getRiskColor } from '@/lib/utils';
+import { formatNumber, formatPercent, formatCurrency, getRiskColor, formatLargeNumber } from '@/lib/utils';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { TrendingDown, TrendingUp, AlertTriangle, Target, Activity, BarChart3, Shield, Zap, Database, Clock, DollarSign } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -180,7 +180,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <Image
-                src="/vortex-logo.svg"
+                src="/vortex-logo.png"
                 alt="Vortex Capital Group"
                 width={200}
                 height={60}
@@ -215,7 +215,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
         </div>
 
         {/* Real-time Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
           <Card className="professional-metric">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -302,6 +302,23 @@ export const ProfessionalRiskDashboard: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="professional-metric">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">BETA</p>
+                  <p className="text-xl font-bold text-purple-400 font-mono">
+                    {formatNumber(riskMetrics?.beta || 1, 2)}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    Market correlation
+                  </p>
+                </div>
+                <TrendingUp className="h-8 w-8 text-purple-400/50" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Terminal and Advanced Metrics */}
@@ -371,6 +388,120 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                   <p className="text-purple-400 font-mono font-bold">
                     {formatNumber(riskMetrics?.kurtosis || 0, 3)}
                   </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Additional Analysis */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <Card className="professional-metric">
+            <CardHeader>
+              <CardTitle className="text-green-400 flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                MARKET INTELLIGENCE
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Market Cap:</span>
+                  <span className="text-green-400 font-mono">
+                    {currentQuote?.marketCap ? formatLargeNumber(currentQuote.marketCap) : 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">P/E Ratio:</span>
+                  <span className="text-green-400 font-mono">
+                    {currentQuote?.peRatio ? formatNumber(currentQuote.peRatio, 2) : 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Volume:</span>
+                  <span className="text-green-400 font-mono">
+                    {currentQuote?.volume ? formatLargeNumber(currentQuote.volume) : 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Day Range:</span>
+                  <span className="text-green-400 font-mono">
+                    {currentQuote ? `${formatCurrency(currentQuote.low)} - ${formatCurrency(currentQuote.high)}` : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="professional-metric">
+            <CardHeader>
+              <CardTitle className="text-green-400 flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                RISK SCENARIOS
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Best Case (95%):</span>
+                  <span className="text-green-400 font-mono">
+                    {formatCurrency(monteCarloResults?.confidenceIntervals.ci95[1] || 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Worst Case (95%):</span>
+                  <span className="text-red-400 font-mono">
+                    {formatCurrency(monteCarloResults?.confidenceIntervals.ci95[0] || 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Best Case (99%):</span>
+                  <span className="text-green-400 font-mono">
+                    {formatCurrency(monteCarloResults?.confidenceIntervals.ci99[1] || 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Worst Case (99%):</span>
+                  <span className="text-red-400 font-mono">
+                    {formatCurrency(monteCarloResults?.confidenceIntervals.ci99[0] || 0)}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="professional-metric">
+            <CardHeader>
+              <CardTitle className="text-green-400 flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                PROFIT/LOSS ANALYSIS
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Potential Loss:</span>
+                  <span className="text-red-400 font-mono">
+                    {formatCurrency(Math.abs(targetPrice - currentPrice))}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Risk/Reward:</span>
+                  <span className="text-yellow-400 font-mono">
+                    {formatNumber(params.targetDecline / (riskMetrics?.volatility || 0.1) * 100, 2)}%
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Position Size:</span>
+                  <span className="text-green-400 font-mono">
+                    {formatNumber(10000 / currentPrice, 0)} shares
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Capital at Risk:</span>
+                  <span className="text-red-400 font-mono">
+                    {formatCurrency(10000 * params.targetDecline)}
+                  </span>
                 </div>
               </div>
             </CardContent>

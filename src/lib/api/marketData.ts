@@ -181,20 +181,20 @@ export class MarketDataService {
     }
   }
 
-  // Real-time data simulation
+  // Real-time data updates (fetch fresh data periodically)
   subscribeToRealTimeData(symbol: string, callback: (quote: YahooFinanceQuote) => void): () => void {
     const interval = setInterval(async () => {
-      const quote = await this.getCurrentQuote(symbol);
-      if (quote) {
-        // Simulate small price movements
-        const change = (Math.random() - 0.5) * 0.001;
-        quote.price *= (1 + change);
-        quote.change = quote.price - quote.previousClose;
-        quote.changePercent = ((quote.change / quote.previousClose) * 100).toFixed(2);
-        
-        callback(quote);
+      try {
+        // Clear cache to force fresh data
+        this.cache.delete(`quote_${symbol}`);
+        const quote = await this.getCurrentQuote(symbol);
+        if (quote) {
+          callback(quote);
+        }
+      } catch (error) {
+        console.error('Error fetching real-time data:', error);
       }
-    }, 1000); // Update every second
+    }, 30000); // Update every 30 seconds (reasonable for real market data)
 
     return () => clearInterval(interval);
   }

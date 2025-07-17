@@ -1,0 +1,287 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 8, 12, 20;
+  --background-end-rgb: 2, 6, 23;
+  --terminal-green: #00ff41;
+  --terminal-amber: #ffb000;
+  --terminal-red: #ff3333;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  background: linear-gradient(135deg, rgb(var(--background-start-rgb)), rgb(var(--background-end-rgb)));
+  min-height: 100vh;
+  font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(30, 41, 59);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(71, 85, 105);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(100, 116, 139);
+}
+
+/* Glassmorphism effects */
+.glass {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9, #0284c7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Animated border */
+@keyframes borderGlow {
+  0% {
+    border-color: rgba(56, 189, 248, 0.3);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+  }
+  50% {
+    border-color: rgba(56, 189, 248, 0.6);
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+  }
+  100% {
+    border-color: rgba(56, 189, 248, 0.3);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+  }
+}
+
+.animate-border-glow {
+  animation: borderGlow 3s ease-in-out infinite;
+}
+
+/* Risk level indicators */
+.risk-low {
+  @apply text-success-500 bg-success-500/10 border-success-500/20;
+}
+
+.risk-medium {
+  @apply text-warning-500 bg-warning-500/10 border-warning-500/20;
+}
+
+.risk-high {
+  @apply text-danger-500 bg-danger-500/10 border-danger-500/20;
+}
+
+/* Chart container */
+.chart-container {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+/* Metric card animations */
+.metric-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  border-color: rgba(56, 189, 248, 0.5);
+}
+
+/* Loading skeleton */
+.skeleton {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Number animations */
+.number-animate {
+  transition: all 0.5s ease-out;
+}
+
+/* Status indicators */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.status-green {
+  background-color: #10b981;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+}
+
+.status-red {
+  background-color: #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+}
+
+.status-yellow {
+  background-color: #f59e0b;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+}
+
+/* Tooltip styles */
+.tooltip {
+  position: relative;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Terminal styling */
+.terminal {
+  font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+  background: #0a0e14;
+  color: #00ff41;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #1a1a1a;
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.1);
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.terminal-title {
+  color: #00ff41;
+  font-size: 14px;
+  font-weight: 600;
+  margin-left: 12px;
+}
+
+.terminal-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.terminal-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.terminal-dot.red { background: #ff3333; }
+.terminal-dot.yellow { background: #ffb000; }
+.terminal-dot.green { background: #00ff41; }
+
+.terminal-input {
+  background: transparent;
+  border: none;
+  color: #00ff41;
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  padding: 8px 0;
+}
+
+/* Matrix rain effect */
+.matrix-rain {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.1;
+}
+
+/* Professional terminal look */
+.hedge-fund-terminal {
+  background: linear-gradient(135deg, #0a0e14 0%, #1a1a1a 50%, #0a0e14 100%);
+  border: 1px solid #333;
+  box-shadow: 
+    0 0 50px rgba(0, 255, 65, 0.1),
+    inset 0 0 50px rgba(0, 0, 0, 0.5);
+}
+
+.terminal-glow {
+  box-shadow: 
+    0 0 20px rgba(0, 255, 65, 0.3),
+    0 0 40px rgba(0, 255, 65, 0.1),
+    0 0 60px rgba(0, 255, 65, 0.05);
+}
+
+.data-stream {
+  animation: dataFlow 0.5s ease-out;
+}
+
+@keyframes dataFlow {
+  0% { 
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  100% { 
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.professional-metric {
+  background: rgba(0, 255, 65, 0.05);
+  border: 1px solid rgba(0, 255, 65, 0.2);
+  transition: all 0.3s ease;
+}
+
+.professional-metric:hover {
+  background: rgba(0, 255, 65, 0.1);
+  border-color: rgba(0, 255, 65, 0.4);
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.2);
+}

@@ -1056,6 +1056,37 @@ export const ProfessionalRiskDashboard: React.FC = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Footer */}
+        <div className="mt-8 border-t border-gray-800 pt-6">
+          <div className="flex flex-col lg:flex-row justify-between items-center space-y-4 lg:space-y-0">
+            <div className="text-center lg:text-left">
+              <p className="text-sm text-gray-400">
+                <span className="text-blue-400 font-semibold">VCG Quantum Risk Terminal</span> - 
+                Developed internally by Vortex Capital Group Research & Development Team
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                ⚠️ Alpha Stage Software - For Internal Research and Development Use Only
+              </p>
+            </div>
+            
+            <div className="text-center lg:text-right">
+              <p className="text-xs text-gray-400">
+                © 2025 Vortex Capital Group
+              </p>
+              <p className="text-xs text-gray-500">
+                Toronto, Ontario, Canada
+              </p>
+            </div>
+          </div>
+          
+          <div className="mt-4 pt-4 border-t border-gray-800/50">
+            <p className="text-xs text-gray-500 text-center">
+              This software utilizes advanced quantum computing algorithms and machine learning models for financial analysis. 
+              All trading signals and projections are for research purposes only and should not be considered as investment advice.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

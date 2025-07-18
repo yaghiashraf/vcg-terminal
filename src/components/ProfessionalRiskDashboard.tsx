@@ -135,10 +135,9 @@ export const ProfessionalRiskDashboard: React.FC = () => {
 
   const generatePriceProjections = (currentPrice: number, metrics: RiskMetrics, days: number): PriceProjection[] => {
     const timeframes = [
-      { days: 7, label: '1 Week' },
-      { days: 30, label: '1 Month' },
-      { days: 90, label: '3 Months' },
-      { days: days, label: `${days} Days` }
+      { days: 1, label: '1 Day' },
+      { days: 7, label: '7 Days' },
+      { days: 30, label: '30 Days' }
     ];
 
     return timeframes.map(tf => {
@@ -542,19 +541,19 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                 <div className="flex justify-between">
                   <span className="text-gray-400">Position Size:</span>
                   <span className="text-green-400 font-mono">
-                    {formatNumber(Math.floor(10000 / currentPrice), 0)} shares
+                    100 shares
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Capital Invested:</span>
                   <span className="text-blue-400 font-mono">
-                    {formatCurrency(Math.floor(10000 / currentPrice) * currentPrice)}
+                    {formatCurrency(100 * currentPrice)}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Daily VaR:</span>
                   <span className="text-red-400 font-mono">
-                    {formatCurrency(Math.floor(10000 / currentPrice) * currentPrice * (riskMetrics?.var95 || 0))}
+                    {formatCurrency(100 * currentPrice * (riskMetrics?.var95 || 0))}
                   </span>
                 </div>
                 <div className="flex justify-between">

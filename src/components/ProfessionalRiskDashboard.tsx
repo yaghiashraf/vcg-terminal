@@ -10,7 +10,6 @@ import { formatNumber, formatPercent, formatCurrency, getRiskColor, formatLargeN
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { TrendingDown, TrendingUp, AlertTriangle, Target, Activity, BarChart3, Shield, Zap, Database, Clock, DollarSign } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import Image from 'next/image';
 
 // Client-side time display component
 const TimeDisplay: React.FC = () => {
@@ -214,14 +213,19 @@ export const ProfessionalRiskDashboard: React.FC = () => {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-4">
-                <Image
+                <img
                   src="/vortex-logo.gif"
                   alt="Vortex Capital Group"
-                  width={200}
-                  height={77}
                   className="h-12 w-auto"
-                  priority
+                  onError={(e) => {
+                    // Fallback to placeholder if logo fails to load
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
                 />
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center hidden">
+                  <span className="text-white font-bold text-xl">V</span>
+                </div>
                 <div className="text-left">
                   <h2 className="text-lg font-bold text-blue-400">VORTEX CAPITAL GROUP</h2>
                   <p className="text-xs text-gray-400">Risk Analysis Terminal</p>

@@ -115,7 +115,9 @@ export const ProfessionalRiskDashboard: React.FC = () => {
         newParams.targetDecline
       );
       setMonteCarloResults(mcResults);
+      addTerminalLog(`Target price: $${(quote.price * (1 - newParams.targetDecline)).toFixed(2)}`, 'info');
       addTerminalLog(`Probability of decline: ${formatPercent(mcResults.probabilities[0])}`, 'success');
+      addTerminalLog(`Expected return: $${mcResults.expectedReturn.toFixed(2)}`, 'info');
       
       addTerminalLog('Analysis complete. Results displayed below.', 'success');
       toast.success('Risk analysis completed successfully');
@@ -191,7 +193,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <Image
-                src="/vortex-logo.png"
+                src="/vortex-logo.gif"
                 alt="Vortex Capital Group"
                 width={200}
                 height={60}
@@ -494,25 +496,25 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                 <div className="flex justify-between">
                   <span className="text-gray-400">Potential Loss:</span>
                   <span className="text-red-400 font-mono">
-                    {formatCurrency(Math.abs(targetPrice - currentPrice))}
+                    {formatCurrency(currentPrice * params.targetDecline)}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Risk/Reward:</span>
                   <span className="text-yellow-400 font-mono">
-                    {formatNumber(params.targetDecline / (riskMetrics?.volatility || 0.1) * 100, 2)}%
+                    {formatNumber((params.targetDecline / (riskMetrics?.volatility || 0.1)) * 100, 2)}%
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Position Size:</span>
                   <span className="text-green-400 font-mono">
-                    {formatNumber(10000 / currentPrice, 0)} shares
+                    {formatNumber(Math.floor(10000 / currentPrice), 0)} shares
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Capital at Risk:</span>
                   <span className="text-red-400 font-mono">
-                    {formatCurrency(10000 * params.targetDecline)}
+                    {formatCurrency(Math.floor(10000 / currentPrice) * currentPrice * params.targetDecline)}
                   </span>
                 </div>
               </div>
@@ -649,40 +651,59 @@ export const ProfessionalRiskDashboard: React.FC = () => {
               <CardTitle className="text-green-400">RISK METRICS HEATMAP</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-400">VaR 95%</span>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-16 h-2 rounded ${getRiskColor(riskMetrics?.var95 || 0, 'var')}`}></div>
-                    <span className="text-xs font-mono">{formatPercent(riskMetrics?.var95 || 0)}</span>
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-400">VaR 95%</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-20 h-3 bg-gray-800 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${getRiskColor(riskMetrics?.var95 || 0, 'var')}`} style={{width: `${Math.min((riskMetrics?.var95 || 0) * 1000, 100)}%`}}></div>
+                      </div>
+                      <span className="text-sm font-mono text-white min-w-[60px]">{formatPercent(riskMetrics?.var95 || 0)}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-400">Volatility</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-20 h-3 bg-gray-800 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${getRiskColor(riskMetrics?.volatility || 0, 'volatility')}`} style={{width: `${Math.min((riskMetrics?.volatility || 0) * 200, 100)}%`}}></div>
+                      </div>
+                      <span className="text-sm font-mono text-white min-w-[60px]">{formatPercent(riskMetrics?.volatility || 0)}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-400">Beta</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-20 h-3 bg-gray-800 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${getRiskColor(riskMetrics?.beta || 1, 'beta')}`} style={{width: `${Math.min(Math.abs(riskMetrics?.beta || 1) * 50, 100)}%`}}></div>
+                      </div>
+                      <span className="text-sm font-mono text-white min-w-[60px]">{formatNumber(riskMetrics?.beta || 1, 2)}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-400">Sharpe Ratio</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-20 h-3 bg-gray-800 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${getRiskColor(riskMetrics?.sharpeRatio || 0, 'sharpe')}`} style={{width: `${Math.min(Math.max((riskMetrics?.sharpeRatio || 0) * 50, 0), 100)}%`}}></div>
+                      </div>
+                      <span className="text-sm font-mono text-white min-w-[60px]">{formatNumber(riskMetrics?.sharpeRatio || 0, 2)}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-400">Max Drawdown</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-20 h-3 bg-gray-800 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${getRiskColor(riskMetrics?.maxDrawdown || 0, 'drawdown')}`} style={{width: `${Math.min((riskMetrics?.maxDrawdown || 0) * 200, 100)}%`}}></div>
+                      </div>
+                      <span className="text-sm font-mono text-white min-w-[60px]">{formatPercent(riskMetrics?.maxDrawdown || 0)}</span>
+                    </div>
                   </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-400">Volatility</span>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-16 h-2 rounded ${getRiskColor(riskMetrics?.volatility || 0, 'volatility')}`}></div>
-                    <span className="text-xs font-mono">{formatPercent(riskMetrics?.volatility || 0)}</span>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-400">Beta</span>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-16 h-2 rounded ${getRiskColor(riskMetrics?.beta || 1, 'beta')}`}></div>
-                    <span className="text-xs font-mono">{formatNumber(riskMetrics?.beta || 1, 2)}</span>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-400">Sharpe Ratio</span>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-16 h-2 rounded ${getRiskColor(riskMetrics?.sharpeRatio || 0, 'sharpe')}`}></div>
-                    <span className="text-xs font-mono">{formatNumber(riskMetrics?.sharpeRatio || 0, 2)}</span>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-400">Max Drawdown</span>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-16 h-2 rounded ${getRiskColor(riskMetrics?.maxDrawdown || 0, 'drawdown')}`}></div>
-                    <span className="text-xs font-mono">{formatPercent(riskMetrics?.maxDrawdown || 0)}</span>
+                <div className="mt-4 pt-3 border-t border-gray-800">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-green-400">Low Risk</span>
+                    <span className="text-yellow-400">Medium Risk</span>
+                    <span className="text-red-400">High Risk</span>
                   </div>
                 </div>
               </div>

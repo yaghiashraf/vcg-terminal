@@ -902,13 +902,27 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                     <div>
                       <span className="text-gray-400">Target Price:</span>
                       <span className="text-green-400 font-mono ml-2">
-                        ${formatNumber(currentPrice * (1 + Math.abs(riskMetrics?.alpha || 0.05) * 2), 2)}
+                        ${formatNumber(
+                          (riskMetrics?.alpha || 0) > 0.02 
+                            ? currentPrice * (1 + Math.abs(riskMetrics?.alpha || 0.05) * 2)  // BUY: target higher
+                            : (riskMetrics?.alpha || 0) < -0.02 
+                            ? currentPrice * (1 - Math.abs(riskMetrics?.alpha || 0.05) * 2)  // SHORT: target lower
+                            : currentPrice, // HOLD: no target
+                          2
+                        )}
                       </span>
                     </div>
                     <div>
                       <span className="text-gray-400">Stop Loss:</span>
                       <span className="text-red-400 font-mono ml-2">
-                        ${formatNumber(currentPrice * (1 - (riskMetrics?.var95 || 0.05)), 2)}
+                        ${formatNumber(
+                          (riskMetrics?.alpha || 0) > 0.02 
+                            ? currentPrice * (1 - (riskMetrics?.var95 || 0.05))  // BUY: stop lower
+                            : (riskMetrics?.alpha || 0) < -0.02 
+                            ? currentPrice * (1 + (riskMetrics?.var95 || 0.05))  // SHORT: stop higher
+                            : currentPrice, // HOLD: no stop
+                          2
+                        )}
                       </span>
                     </div>
                     <div>
@@ -950,8 +964,11 @@ export const ProfessionalRiskDashboard: React.FC = () => {
 
                 <div className="mt-4 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
                   <p className="text-xs text-green-400">
-                    💡 VORTEX INSIGHT: {(riskMetrics?.alpha || 0) > 0.02 ? 'Strong bullish momentum detected' : 
-                                        (riskMetrics?.alpha || 0) < -0.02 ? 'Bearish reversal signal active' : 'Neutral market conditions'}. 
+                    💡 VORTEX INSIGHT: {
+                      (riskMetrics?.alpha || 0) > 0.02 ? 'Strong bullish momentum detected. Buy signal with upside target and protective stop below.' : 
+                      (riskMetrics?.alpha || 0) < -0.02 ? 'Bearish reversal signal active. Short signal with downside target and protective stop above.' : 
+                      'Neutral market conditions. Hold position and monitor for signal changes.'
+                    } 
                     Expected return: {formatPercent(Math.abs(riskMetrics?.alpha || 0.05) * 2)} over {Math.round(15 + Math.random() * 20)} days.
                   </p>
                 </div>

@@ -59,9 +59,55 @@ export const ProfessionalRiskDashboard: React.FC = () => {
   const [priceProjections, setPriceProjections] = useState<PriceProjection[]>([]);
   const [terminalLogs, setTerminalLogs] = useState<Array<{ command: string; timestamp: Date; type: 'info' | 'success' | 'error' }>>([]);
   const [realTimePrice, setRealTimePrice] = useState<number | null>(null);
+  const [trendAnalysis, setTrendAnalysis] = useState<{
+    direction: 'bullish' | 'bearish' | 'neutral';
+    strength: number;
+    confidence: number;
+    avgReturn: number;
+  } | null>(null);
 
   const addTerminalLog = (command: string, type: 'info' | 'success' | 'error' = 'info') => {
     setTerminalLogs(prev => [...prev, { command, timestamp: new Date(), type }]);
+  };
+
+  // Unified trend analysis function used by both neural network and alpha generation
+  const calculateUnifiedTrend = (historicalData: MarketData[]) => {
+    if (historicalData.length < 10) return null;
+    
+    // Calculate recent returns (last 10 days)
+    const recentData = historicalData.slice(-10);
+    const recentReturns = recentData.slice(1).map((item, i) => 
+      (item.close - recentData[i].close) / recentData[i].close
+    );
+    
+    // Calculate medium-term returns (last 20 days)
+    const mediumData = historicalData.slice(-20);
+    const mediumReturns = mediumData.slice(1).map((item, i) => 
+      (item.close - mediumData[i].close) / mediumData[i].close
+    );
+    
+    const avgRecentReturn = recentReturns.reduce((sum, r) => sum + r, 0) / recentReturns.length;
+    const avgMediumReturn = mediumReturns.reduce((sum, r) => sum + r, 0) / mediumReturns.length;
+    
+    // Calculate trend strength (combination of recent and medium-term)
+    const trendStrength = (avgRecentReturn * 0.7) + (avgMediumReturn * 0.3);
+    
+    // Calculate confidence based on consistency of returns
+    const recentStdDev = Math.sqrt(recentReturns.reduce((sum, r) => sum + Math.pow(r - avgRecentReturn, 2), 0) / recentReturns.length);
+    const confidence = Math.max(0, Math.min(1, 1 - (recentStdDev / Math.abs(avgRecentReturn || 0.01))));
+    
+    // Determine direction based on trend strength
+    let direction: 'bullish' | 'bearish' | 'neutral';
+    if (trendStrength > 0.003) direction = 'bullish'; // 0.3% threshold
+    else if (trendStrength < -0.003) direction = 'bearish';
+    else direction = 'neutral';
+    
+    return {
+      direction,
+      strength: Math.abs(trendStrength),
+      confidence,
+      avgReturn: avgRecentReturn
+    };
   };
 
   const runAnalysis = async (newParams: AnalysisParams) => {
@@ -101,6 +147,16 @@ export const ProfessionalRiskDashboard: React.FC = () => {
       addTerminalLog('Initializing advanced risk models...', 'info');
       const engine = new AdvancedRiskEngine(data);
       setRiskEngine(engine);
+      
+      // Calculate unified trend analysis
+      addTerminalLog('Computing unified trend analysis...', 'info');
+      const trend = calculateUnifiedTrend(data);
+      setTrendAnalysis(trend);
+      if (trend) {
+        addTerminalLog(`Trend Direction: ${trend.direction.toUpperCase()}`, 'success');
+        addTerminalLog(`Trend Strength: ${formatPercent(trend.strength)}`, 'success');
+        addTerminalLog(`Confidence: ${formatPercent(trend.confidence)}`, 'success');
+      }
       
       // Calculate risk metrics with benchmark data
       addTerminalLog('Computing GARCH volatility model...', 'info');
@@ -245,28 +301,25 @@ export const ProfessionalRiskDashboard: React.FC = () => {
   }, [riskEngine, marketData]);
 
   const neuralNetworkData = useMemo(() => {
-    if (!marketData.length || !riskMetrics) return [];
+    if (!marketData.length || !riskMetrics || !trendAnalysis) return [];
     
     // Use last 20 days of historical data + 10 days of predictions
     const historical = marketData.slice(-20);
     const currentPrice = marketData[marketData.length - 1]?.close || 0;
     
-    // Generate future predictions using neural network-style algorithm
+    // Generate future predictions using neural network-style algorithm with unified trend
     const predictions = [];
     let lastPrice = currentPrice;
     
-    // Calculate trend from recent data
-    const recentReturns = historical.slice(-10).map((item, i) => {
-      if (i === 0) return 0;
-      return (item.close - historical[historical.length - 10 + i - 1].close) / historical[historical.length - 10 + i - 1].close;
-    });
-    const avgReturn = recentReturns.reduce((sum, r) => sum + r, 0) / recentReturns.length;
+    // Use unified trend analysis instead of calculating separately
+    const baseDirection = trendAnalysis.direction === 'bullish' ? 1 : trendAnalysis.direction === 'bearish' ? -1 : 0;
+    const trendMomentum = trendAnalysis.avgReturn * trendAnalysis.confidence;
     
     for (let i = 0; i < 10; i++) {
-      // Neural network prediction with trend, momentum, and controlled volatility
+      // Neural network prediction with unified trend
       const daysFuture = i + 1;
       const timeDecay = Math.exp(-daysFuture * 0.1); // Reduce confidence over time
-      const momentum = avgReturn * timeDecay;
+      const momentum = trendMomentum * timeDecay;
       const volatility = riskMetrics.volatility * Math.sqrt(daysFuture) / Math.sqrt(252);
       const noise = (Math.random() - 0.5) * volatility * 0.3; // Reduced noise
       const trend = momentum + noise;
@@ -293,7 +346,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
     }));
     
     return [...historicalData, ...predictions];
-  }, [marketData, riskMetrics]);
+  }, [marketData, riskMetrics, trendAnalysis]);
 
   const projectionChartData = useMemo(() => {
     if (!priceProjections.length) return [];
@@ -925,11 +978,11 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm font-semibold text-green-400">TRADING SIGNAL</span>
                     <span className={`text-lg font-bold ${
-                      (riskMetrics?.alpha || 0) > 0.02 ? 'text-green-400' : 
-                      (riskMetrics?.alpha || 0) < -0.02 ? 'text-red-400' : 'text-yellow-400'
+                      trendAnalysis?.direction === 'bullish' ? 'text-green-400' : 
+                      trendAnalysis?.direction === 'bearish' ? 'text-red-400' : 'text-yellow-400'
                     }`}>
-                      {(riskMetrics?.alpha || 0) > 0.02 ? 'STRONG BUY' : 
-                       (riskMetrics?.alpha || 0) < -0.02 ? 'STRONG SHORT' : 'HOLD'}
+                      {trendAnalysis?.direction === 'bullish' ? 'STRONG BUY' : 
+                       trendAnalysis?.direction === 'bearish' ? 'STRONG SHORT' : 'HOLD'}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-sm">
@@ -943,10 +996,10 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                       <span className="text-gray-400">Target Price:</span>
                       <span className="text-green-400 font-mono ml-2">
                         ${formatNumber(
-                          (riskMetrics?.alpha || 0) > 0.02 
-                            ? currentPrice * (1 + Math.abs(riskMetrics?.alpha || 0.05) * 2)  // BUY: target higher
-                            : (riskMetrics?.alpha || 0) < -0.02 
-                            ? currentPrice * (1 - Math.abs(riskMetrics?.alpha || 0.05) * 2)  // SHORT: target lower
+                          trendAnalysis?.direction === 'bullish' 
+                            ? currentPrice * (1 + (trendAnalysis?.strength || 0.05) * 3)  // BUY: target higher
+                            : trendAnalysis?.direction === 'bearish' 
+                            ? currentPrice * (1 - (trendAnalysis?.strength || 0.05) * 3)  // SHORT: target lower
                             : currentPrice, // HOLD: no target
                           2
                         )}
@@ -956,9 +1009,9 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                       <span className="text-gray-400">Stop Loss:</span>
                       <span className="text-red-400 font-mono ml-2">
                         ${formatNumber(
-                          (riskMetrics?.alpha || 0) > 0.02 
+                          trendAnalysis?.direction === 'bullish' 
                             ? currentPrice * (1 - (riskMetrics?.var95 || 0.05))  // BUY: stop lower
-                            : (riskMetrics?.alpha || 0) < -0.02 
+                            : trendAnalysis?.direction === 'bearish' 
                             ? currentPrice * (1 + (riskMetrics?.var95 || 0.05))  // SHORT: stop higher
                             : currentPrice, // HOLD: no stop
                           2
@@ -979,7 +1032,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-400">Alpha Score:</span>
                     <span className="text-xl font-bold text-green-400 font-mono">
-                      {formatNumber((riskMetrics?.alpha || 0) * 100 + 2.47, 2)}
+                      {formatNumber(((trendAnalysis?.strength || 0) * (trendAnalysis?.direction === 'bullish' ? 1 : trendAnalysis?.direction === 'bearish' ? -1 : 0)) * 100 + 2.47, 2)}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
@@ -991,13 +1044,13 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-400">Risk-Adjusted Return:</span>
                     <span className="text-lg font-bold text-purple-400 font-mono">
-                      {formatPercent((riskMetrics?.alpha || 0) / (riskMetrics?.volatility || 0.2))}
+                      {formatPercent((trendAnalysis?.strength || 0) / (riskMetrics?.volatility || 0.2))}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-400">Win Probability:</span>
                     <span className="text-lg font-bold text-cyan-400 font-mono">
-                      {formatPercent(0.65 + Math.random() * 0.25)}
+                      {formatPercent(0.5 + (trendAnalysis?.confidence || 0) * 0.4)}
                     </span>
                   </div>
                 </div>
@@ -1005,11 +1058,11 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                 <div className="mt-4 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
                   <p className="text-xs text-green-400">
                     💡 VORTEX INSIGHT: {
-                      (riskMetrics?.alpha || 0) > 0.02 ? 'Strong bullish momentum detected. Buy signal with upside target and protective stop below.' : 
-                      (riskMetrics?.alpha || 0) < -0.02 ? 'Bearish reversal signal active. Short signal with downside target and protective stop above.' : 
+                      trendAnalysis?.direction === 'bullish' ? 'Strong bullish momentum detected. Buy signal with upside target and protective stop below.' : 
+                      trendAnalysis?.direction === 'bearish' ? 'Bearish reversal signal active. Short signal with downside target and protective stop above.' : 
                       'Neutral market conditions. Hold position and monitor for signal changes.'
                     } 
-                    Expected return: {formatPercent(Math.abs(riskMetrics?.alpha || 0.05) * 2)} over {Math.round(15 + Math.random() * 20)} days.
+                    Expected return: {formatPercent((trendAnalysis?.strength || 0.05) * 3)} over {Math.round(15 + Math.random() * 20)} days.
                   </p>
                 </div>
               </div>

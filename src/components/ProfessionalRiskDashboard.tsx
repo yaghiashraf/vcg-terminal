@@ -84,6 +84,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
     volume: number;
     type: 'accumulation' | 'distribution';
   }[]>([]);
+  const [chartRevision, setChartRevision] = useState(0);
 
   const addTerminalLog = (command: string, type: 'info' | 'success' | 'error' = 'info') => {
     setTerminalLogs(prev => [...prev, { command, timestamp: new Date(), type }]);
@@ -205,6 +206,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
   const runAnalysis = async (newParams: AnalysisParams) => {
     setLoading(true);
     setParams(newParams);
+    setChartRevision(prev => prev + 1); // Force chart updates
     
     try {
       addTerminalLog(`Initializing price projection analysis for ${newParams.symbol}...`, 'info');
@@ -1109,7 +1111,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="h-96">
-                {volumeProfile.length > 0 && (
+                {volumeProfile.length > 0 ? (
                   <Plot
                     data={[
                       {
@@ -1160,7 +1162,13 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                       staticPlot: false
                     }}
                     style={{ width: '100%', height: '100%' }}
+                    key={`volume-profile-${params.symbol}`}
+                    revision={chartRevision}
                   />
+                ) : (
+                  <div className="h-full bg-gray-800/30 rounded-lg flex items-center justify-center text-gray-400">
+                    No volume profile data available
+                  </div>
                 )}
               </div>
             </CardContent>
@@ -1175,7 +1183,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="h-96">
-                {accumulationZones.length > 0 && (
+                {accumulationZones.length > 0 ? (
                   <Plot
                     data={[
                       {
@@ -1232,7 +1240,13 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                       staticPlot: false
                     }}
                     style={{ width: '100%', height: '100%' }}
+                    key={`accumulation-zones-${params.symbol}`}
+                    revision={chartRevision}
                   />
+                ) : (
+                  <div className="h-full bg-gray-800/30 rounded-lg flex items-center justify-center text-gray-400">
+                    No accumulation zones detected
+                  </div>
                 )}
               </div>
             </CardContent>
@@ -1402,16 +1416,13 @@ export const ProfessionalRiskDashboard: React.FC = () => {
             
             <div className="text-center lg:text-right">
               <p className="text-xs text-gray-400">
-                © 2025 Vortex Capital Group
-              </p>
-              <p className="text-xs text-gray-500">
-                Toronto, Ontario, Canada
+                © 2025 Vortex Capital Group. All rights reserved.
               </p>
             </div>
           </div>
           
           <div className="mt-4 pt-4 border-t border-gray-800/50">
-            <p className="text-xs text-gray-500 text-center">
+            <p className="text-xs text-gray-500 text-left">
               This software utilizes advanced quantum computing algorithms and machine learning models for financial analysis. 
               All trading signals and projections are for research purposes only and should not be considered as investment advice.
             </p>

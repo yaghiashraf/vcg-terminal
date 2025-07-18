@@ -247,40 +247,49 @@ export const ProfessionalRiskDashboard: React.FC = () => {
   const neuralNetworkData = useMemo(() => {
     if (!marketData.length || !riskMetrics) return [];
     
-    // Use last 15 days of historical data + 15 days of predictions
-    const historical = marketData.slice(-15);
+    // Use last 20 days of historical data + 10 days of predictions
+    const historical = marketData.slice(-20);
     const currentPrice = marketData[marketData.length - 1]?.close || 0;
     
     // Generate future predictions using neural network-style algorithm
     const predictions = [];
     let lastPrice = currentPrice;
     
-    for (let i = 0; i < 15; i++) {
-      // Simple neural network prediction with momentum and volatility
-      const momentum = riskMetrics.skewness * 0.1;
-      const volatility = riskMetrics.volatility * Math.sqrt(i + 1) / Math.sqrt(252);
-      const noise = (Math.random() - 0.5) * volatility * 0.5;
+    // Calculate trend from recent data
+    const recentReturns = historical.slice(-10).map((item, i) => {
+      if (i === 0) return 0;
+      return (item.close - historical[historical.length - 10 + i - 1].close) / historical[historical.length - 10 + i - 1].close;
+    });
+    const avgReturn = recentReturns.reduce((sum, r) => sum + r, 0) / recentReturns.length;
+    
+    for (let i = 0; i < 10; i++) {
+      // Neural network prediction with trend, momentum, and controlled volatility
+      const daysFuture = i + 1;
+      const timeDecay = Math.exp(-daysFuture * 0.1); // Reduce confidence over time
+      const momentum = avgReturn * timeDecay;
+      const volatility = riskMetrics.volatility * Math.sqrt(daysFuture) / Math.sqrt(252);
+      const noise = (Math.random() - 0.5) * volatility * 0.3; // Reduced noise
       const trend = momentum + noise;
       
       lastPrice = lastPrice * (1 + trend);
-      const confidence = riskMetrics.volatility * lastPrice * 0.15;
+      const confidence = Math.abs(lastPrice * volatility * 0.5); // Confidence bands
       
       predictions.push({
-        date: new Date(Date.now() + (i + 1) * 24 * 60 * 60 * 1000).toLocaleDateString(),
-        actualPrice: null, // No actual price for future dates
+        date: new Date(Date.now() + daysFuture * 24 * 60 * 60 * 1000).toLocaleDateString(),
+        actualPrice: undefined, // No actual price for future dates
         predictedPrice: lastPrice,
         confidenceUpper: lastPrice + confidence,
-        confidenceLower: lastPrice - confidence
+        confidenceLower: Math.max(0, lastPrice - confidence) // Ensure non-negative
       });
     }
     
-    // Combine historical and predicted data
+    // Combine historical and predicted data with proper structure
     const historicalData = historical.map(item => ({
       date: new Date(item.date).toLocaleDateString(),
       actualPrice: item.close,
-      predictedPrice: null,
-      confidenceUpper: null,
-      confidenceLower: null
+      predictedPrice: undefined, // No predictions for historical data
+      confidenceUpper: undefined,
+      confidenceLower: undefined
     }));
     
     return [...historicalData, ...predictions];
@@ -807,14 +816,38 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={neuralNetworkData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
-                    <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="#64748b" 
+                      fontSize={12}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                    />
                     <YAxis 
                       stroke="#64748b" 
                       fontSize={12}
                       domain={[
-                        (dataMin: number) => Math.max(0, dataMin * 0.95),
-                        (dataMax: number) => dataMax * 1.05
+                        (dataMin: number) => {
+                          const allValues = neuralNetworkData.flatMap(d => [
+                            d.actualPrice, 
+                            d.predictedPrice, 
+                            d.confidenceLower
+                          ].filter(v => v !== undefined && v !== null));
+                          const min = Math.min(...allValues);
+                          return Math.max(0, min * 0.95);
+                        },
+                        (dataMax: number) => {
+                          const allValues = neuralNetworkData.flatMap(d => [
+                            d.actualPrice, 
+                            d.predictedPrice, 
+                            d.confidenceUpper
+                          ].filter(v => v !== undefined && v !== null));
+                          const max = Math.max(...allValues);
+                          return max * 1.05;
+                        }
                       ]}
+                      tickFormatter={(value) => `$${value.toFixed(2)}`}
                     />
                     <Tooltip 
                       contentStyle={{ 
@@ -823,24 +856,29 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                         borderRadius: '8px',
                         color: '#00ff41'
                       }} 
-                      formatter={(value: number) => [`$${value.toFixed(2)}`, '']}
+                      formatter={(value: any, name: string) => {
+                        if (value === undefined || value === null || typeof value !== 'number') return ['--', name];
+                        return [`$${value.toFixed(2)}`, name];
+                      }}
                     />
                     <Line 
                       type="monotone" 
                       dataKey="actualPrice" 
                       stroke="#3b82f6" 
-                      strokeWidth={2}
+                      strokeWidth={3}
                       dot={false}
                       name="Historical Price"
+                      connectNulls={false}
                     />
                     <Line 
                       type="monotone" 
                       dataKey="predictedPrice" 
                       stroke="#ff4757" 
-                      strokeWidth={2}
+                      strokeWidth={3}
                       dot={false}
                       name="AI Prediction"
                       strokeDasharray="5 5"
+                      connectNulls={false}
                     />
                     <Line 
                       type="monotone" 
@@ -850,7 +888,8 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                       dot={false}
                       name="Confidence Upper"
                       strokeDasharray="2 2"
-                      opacity={0.5}
+                      opacity={0.4}
+                      connectNulls={false}
                     />
                     <Line 
                       type="monotone" 
@@ -860,7 +899,8 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                       dot={false}
                       name="Confidence Lower"
                       strokeDasharray="2 2"
-                      opacity={0.5}
+                      opacity={0.4}
+                      connectNulls={false}
                     />
                   </LineChart>
                 </ResponsiveContainer>

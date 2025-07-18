@@ -1,5 +1,6 @@
 import { MarketData } from '@/lib/models/RiskModels';
 import axios from 'axios';
+import { multiApiService } from './multiApiService';
 
 export interface YahooFinanceQuote {
   symbol: string;
@@ -61,7 +62,31 @@ export class MarketDataService {
     if (cached) return cached;
 
     try {
-      // Using Yahoo Finance API proxy
+      // Try multi-API service first
+      const apiQuote = await multiApiService.getQuote(symbol);
+      if (apiQuote) {
+        const quote: YahooFinanceQuote = {
+          symbol: apiQuote.symbol,
+          price: apiQuote.price,
+          change: apiQuote.change,
+          changePercent: apiQuote.changePercent,
+          currency: apiQuote.currency || 'USD',
+          previousClose: apiQuote.previousClose,
+          open: apiQuote.open,
+          high: apiQuote.high,
+          low: apiQuote.low,
+          volume: apiQuote.volume,
+          timestamp: apiQuote.timestamp,
+          marketCap: apiQuote.marketCap,
+          peRatio: apiQuote.peRatio,
+          dividendYield: apiQuote.dividendYield
+        };
+        
+        this.setCachedData(cacheKey, quote);
+        return quote;
+      }
+      
+      // Fallback to Yahoo Finance API proxy
       const response = await axios.get(`/api/quote/${symbol}`);
       const data = response.data;
       
@@ -85,8 +110,8 @@ export class MarketDataService {
       this.setCachedData(cacheKey, quote);
       return quote;
     } catch (error) {
-      console.error('Error fetching quote:', error);
-      // Fallback to generated quote data
+      console.error('Error fetching quote from all sources:', error);
+      // Final fallback to generated quote data
       const fallbackQuote = this.generateFallbackQuote(symbol);
       this.setCachedData(cacheKey, fallbackQuote);
       return fallbackQuote;
@@ -124,7 +149,23 @@ export class MarketDataService {
     if (cached) return cached;
 
     try {
-      // Using Yahoo Finance API proxy
+      // Try multi-API service first
+      const apiData = await multiApiService.getHistoricalData(symbol, period);
+      if (apiData && apiData.data.length > 0) {
+        const marketData: MarketData[] = apiData.data.map((item: any) => ({
+          date: item.date,
+          open: item.open,
+          high: item.high,
+          low: item.low,
+          close: item.close,
+          volume: item.volume
+        }));
+        
+        this.setCachedData(cacheKey, marketData);
+        return marketData;
+      }
+      
+      // Fallback to Yahoo Finance API proxy
       const response = await axios.get(`/api/history/${symbol}?period=${period}`);
       const data = response.data;
       
@@ -140,8 +181,8 @@ export class MarketDataService {
       this.setCachedData(cacheKey, marketData);
       return marketData;
     } catch (error) {
-      console.error('Error fetching historical data:', error);
-      // Fallback to generated data for demo
+      console.error('Error fetching historical data from all sources:', error);
+      // Final fallback to generated data for demo
       const fallbackData = this.generateHistoricalData(symbol, period);
       return fallbackData;
     }

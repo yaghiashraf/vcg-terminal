@@ -32,7 +32,7 @@ const TimeDisplay: React.FC = () => {
 interface AnalysisParams {
   symbol: string;
   projectionDays: number;
-  period: '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y';
+  period: '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y' | '10y';
 }
 
 interface PriceProjection {

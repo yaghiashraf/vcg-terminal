@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils';
 
 const analysisSchema = z.object({
   symbol: z.string().min(1, 'Symbol is required').max(10, 'Symbol too long'),
-  projectionDays: z.number().min(1).max(365),
-  period: z.enum(['1mo', '3mo', '6mo', '1y', '2y', '5y']),
+  projectionDays: z.number().min(1).max(90),
+  period: z.enum(['1mo', '3mo', '6mo', '1y', '2y', '5y', '10y']),
 });
 
 type AnalysisForm = z.infer<typeof analysisSchema>;
@@ -83,7 +83,7 @@ export const Controls: React.FC<ControlsProps> = ({
               {...register('projectionDays', { valueAsNumber: true })}
               type="number"
               min="1"
-              max="365"
+              max="90"
               placeholder="30"
               className={cn(
                 'w-full px-3 py-2 bg-black border rounded font-mono text-green-400',
@@ -117,6 +117,7 @@ export const Controls: React.FC<ControlsProps> = ({
               <option value="1y">1 Year</option>
               <option value="2y">2 Years</option>
               <option value="5y">5 Years</option>
+              <option value="10y">10 Years</option>
             </select>
             {errors.period && (
               <p className="text-red-400 text-xs mt-1">{errors.period.message}</p>

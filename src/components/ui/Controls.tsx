@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils';
 const analysisSchema = z.object({
   symbol: z.string().min(1, 'Symbol is required').max(10, 'Symbol too long'),
   projectionDays: z.number().min(1).max(90),
-  period: z.enum(['1mo', '3mo', '6mo', '1y', '2y', '5y', '10y']),
 });
 
 type AnalysisForm = z.infer<typeof analysisSchema>;
@@ -23,8 +22,7 @@ export const Controls: React.FC<ControlsProps> = ({
   loading = false,
   defaultValues = {
     symbol: 'SPY',
-    projectionDays: 30,
-    period: '1y'
+    projectionDays: 30
   }
 }) => {
   const {
@@ -53,7 +51,7 @@ export const Controls: React.FC<ControlsProps> = ({
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Symbol Input */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -98,31 +96,6 @@ export const Controls: React.FC<ControlsProps> = ({
             )}
           </div>
 
-          {/* Historical Period */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              HISTORICAL PERIOD
-            </label>
-            <select
-              {...register('period')}
-              className={cn(
-                'w-full px-3 py-2 bg-black border rounded font-mono text-green-400',
-                'focus:outline-none focus:ring-2 focus:ring-green-400/50',
-                errors.period ? 'border-red-500' : 'border-gray-600'
-              )}
-            >
-              <option value="1mo">1 Month</option>
-              <option value="3mo">3 Months</option>
-              <option value="6mo">6 Months</option>
-              <option value="1y">1 Year</option>
-              <option value="2y">2 Years</option>
-              <option value="5y">5 Years</option>
-              <option value="10y">10 Years</option>
-            </select>
-            {errors.period && (
-              <p className="text-red-400 text-xs mt-1">{errors.period.message}</p>
-            )}
-          </div>
         </div>
 
         {/* Submit Button */}
@@ -158,6 +131,12 @@ export const Controls: React.FC<ControlsProps> = ({
               <span className="text-green-400 ml-2">
                 {new Date(Date.now() + (watchedValues.projectionDays || 30) * 24 * 60 * 60 * 1000)
                   .toLocaleDateString()}
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-500">Historical Data:</span>
+              <span className="text-green-400 ml-2">
+                Maximum Available
               </span>
             </div>
           </div>

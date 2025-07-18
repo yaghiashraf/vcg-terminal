@@ -57,6 +57,15 @@ export class AdvancedRiskEngine {
     this.logReturns = this.calculateLogReturns();
   }
 
+  // Public method to access returns for external calculations
+  public getReturns(): number[] {
+    return this.returns;
+  }
+
+  public getLogReturns(): number[] {
+    return this.logReturns;
+  }
+
   private calculateReturns(): number[] {
     const returns: number[] = [];
     for (let i = 1; i < this.data.length; i++) {

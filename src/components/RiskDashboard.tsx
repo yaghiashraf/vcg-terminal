@@ -186,7 +186,7 @@ export const RiskDashboard: React.FC<RiskDashboardProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-dark-400 mb-1">Decline Probability</p>
-                <p className={`text-2xl font-bold ${getRiskColor(probabilityOfDecline, [0.2, 0.4])}`}>
+                <p className={`text-2xl font-bold ${probabilityOfDecline > 0.4 ? 'text-red-400' : probabilityOfDecline > 0.2 ? 'text-yellow-400' : 'text-green-400'}`}>
                   {formatPercent(probabilityOfDecline)}
                 </p>
               </div>
@@ -393,7 +393,11 @@ export const RiskDashboard: React.FC<RiskDashboardProps> = ({
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="text-center">
-                <div className={`inline-flex items-center px-4 py-2 rounded-full ${getRiskColor(probabilityOfDecline, [0.2, 0.4])}`}>
+                <div className={`inline-flex items-center px-4 py-2 rounded-full ${
+                  probabilityOfDecline > 0.4 ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                  probabilityOfDecline > 0.2 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
+                  'bg-green-500/20 text-green-400 border border-green-500/30'
+                }`}>
                   <span className="text-sm font-medium">
                     {probabilityOfDecline > 0.4 ? 'High Risk' : probabilityOfDecline > 0.2 ? 'Medium Risk' : 'Low Risk'}
                   </span>

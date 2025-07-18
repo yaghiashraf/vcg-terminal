@@ -30,11 +30,31 @@ export function formatLargeNumber(num: number): string {
   return num.toString();
 }
 
-export function getRiskColor(value: number, thresholds: [number, number]): string {
-  const [low, high] = thresholds;
-  if (value <= low) return 'risk-low';
-  if (value <= high) return 'risk-medium';
-  return 'risk-high';
+export function getRiskColor(value: number, type: 'var' | 'volatility' | 'beta' | 'sharpe' | 'drawdown'): string {
+  switch (type) {
+    case 'var':
+      if (value <= 0.02) return 'bg-green-500';
+      if (value <= 0.05) return 'bg-yellow-500';
+      return 'bg-red-500';
+    case 'volatility':
+      if (value <= 0.15) return 'bg-green-500';
+      if (value <= 0.25) return 'bg-yellow-500';
+      return 'bg-red-500';
+    case 'beta':
+      if (Math.abs(value - 1) <= 0.2) return 'bg-green-500';
+      if (Math.abs(value - 1) <= 0.5) return 'bg-yellow-500';
+      return 'bg-red-500';
+    case 'sharpe':
+      if (value >= 1.5) return 'bg-green-500';
+      if (value >= 1.0) return 'bg-yellow-500';
+      return 'bg-red-500';
+    case 'drawdown':
+      if (value <= 0.05) return 'bg-green-500';
+      if (value <= 0.15) return 'bg-yellow-500';
+      return 'bg-red-500';
+    default:
+      return 'bg-gray-500';
+  }
 }
 
 export function debounce<T extends (...args: any[]) => void>(

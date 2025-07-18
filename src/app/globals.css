@@ -11,6 +11,12 @@
   --terminal-green: #00ff41;
   --terminal-amber: #ffb000;
   --terminal-red: #ff3333;
+  --vortex-primary: #2563eb;
+  --vortex-secondary: #1e40af;
+  --vortex-accent: #06b6d4;
+  --vortex-success: #10b981;
+  --vortex-warning: #f59e0b;
+  --vortex-danger: #ef4444;
 }
 
 * {
@@ -275,13 +281,20 @@ body {
 }
 
 .professional-metric {
-  background: rgba(0, 255, 65, 0.05);
-  border: 1px solid rgba(0, 255, 65, 0.2);
+  background: rgba(37, 99, 235, 0.05);
+  border: 1px solid rgba(37, 99, 235, 0.2);
   transition: all 0.3s ease;
 }
 
 .professional-metric:hover {
-  background: rgba(0, 255, 65, 0.1);
-  border-color: rgba(0, 255, 65, 0.4);
-  box-shadow: 0 0 15px rgba(0, 255, 65, 0.2);
+  background: rgba(37, 99, 235, 0.1);
+  border-color: rgba(37, 99, 235, 0.4);
+  box-shadow: 0 0 15px rgba(37, 99, 235, 0.2);
+}
+
+.vortex-gradient {
+  background: linear-gradient(135deg, #2563eb, #1e40af, #06b6d4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }

@@ -46,6 +46,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
   });
   
   const [marketData, setMarketData] = useState<MarketData[]>([]);
+  const [benchmarkData, setBenchmarkData] = useState<MarketData[]>([]);
   const [currentQuote, setCurrentQuote] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [riskEngine, setRiskEngine] = useState<AdvancedRiskEngine | null>(null);
@@ -84,16 +85,26 @@ export const ProfessionalRiskDashboard: React.FC = () => {
       setMarketData(data);
       addTerminalLog(`Loaded ${data.length} data points`, 'success');
       
+      // Fetch benchmark data (SPY) for beta calculation
+      addTerminalLog('Loading benchmark data (SPY)...', 'info');
+      const benchmarkSymbol = newParams.symbol.toUpperCase() === 'SPY' ? 'QQQ' : 'SPY';
+      const spyData = await marketDataService.getHistoricalData(benchmarkSymbol, newParams.period);
+      setBenchmarkData(spyData);
+      addTerminalLog(`Loaded ${spyData.length} benchmark data points`, 'success');
+      
       // Initialize risk engine
       addTerminalLog('Initializing advanced risk models...', 'info');
       const engine = new AdvancedRiskEngine(data);
       setRiskEngine(engine);
       
-      // Calculate risk metrics
+      // Calculate risk metrics with benchmark data
       addTerminalLog('Computing GARCH volatility model...', 'info');
-      const metrics = engine.calculateAdvancedRiskMetrics();
+      const benchmarkEngine = new AdvancedRiskEngine(spyData);
+      const benchmarkReturns = benchmarkEngine.getReturns();
+      const metrics = engine.calculateAdvancedRiskMetrics(benchmarkReturns);
       setRiskMetrics(metrics);
       addTerminalLog(`VaR(95%): ${formatPercent(metrics.var95)}`, 'success');
+      addTerminalLog(`Beta: ${formatNumber(metrics.beta, 2)}`, 'success');
       
       // Run Monte Carlo simulation
       addTerminalLog('Running Monte Carlo simulation (10,000 scenarios)...', 'info');
@@ -185,6 +196,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                 width={200}
                 height={60}
                 className="h-12 w-auto"
+                priority
               />
               <div className="h-8 w-px bg-green-400/30"></div>
               <div>
@@ -583,6 +595,131 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                       label={{ value: "Current", position: "top" }}
                     />
                   </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Additional Advanced Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <Card className="professional-metric">
+            <CardHeader>
+              <CardTitle className="text-green-400">PRICE MOMENTUM & RETURNS</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={volatilityData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
+                    <XAxis dataKey="date" stroke="#64748b" fontSize={10} />
+                    <YAxis stroke="#64748b" fontSize={10} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#0a0e14', 
+                        border: '1px solid #1a1a1a',
+                        borderRadius: '8px',
+                        color: '#00ff41'
+                      }} 
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="price" 
+                      stroke="#3b82f6" 
+                      strokeWidth={2}
+                      dot={false}
+                      name="Price"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="returns" 
+                      stroke="#f59e0b" 
+                      strokeWidth={1}
+                      dot={false}
+                      name="Returns %"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="professional-metric">
+            <CardHeader>
+              <CardTitle className="text-green-400">RISK METRICS HEATMAP</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-400">VaR 95%</span>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-16 h-2 rounded ${getRiskColor(riskMetrics?.var95 || 0, 'var')}`}></div>
+                    <span className="text-xs font-mono">{formatPercent(riskMetrics?.var95 || 0)}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-400">Volatility</span>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-16 h-2 rounded ${getRiskColor(riskMetrics?.volatility || 0, 'volatility')}`}></div>
+                    <span className="text-xs font-mono">{formatPercent(riskMetrics?.volatility || 0)}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-400">Beta</span>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-16 h-2 rounded ${getRiskColor(riskMetrics?.beta || 1, 'beta')}`}></div>
+                    <span className="text-xs font-mono">{formatNumber(riskMetrics?.beta || 1, 2)}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-400">Sharpe Ratio</span>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-16 h-2 rounded ${getRiskColor(riskMetrics?.sharpeRatio || 0, 'sharpe')}`}></div>
+                    <span className="text-xs font-mono">{formatNumber(riskMetrics?.sharpeRatio || 0, 2)}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-400">Max Drawdown</span>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-16 h-2 rounded ${getRiskColor(riskMetrics?.maxDrawdown || 0, 'drawdown')}`}></div>
+                    <span className="text-xs font-mono">{formatPercent(riskMetrics?.maxDrawdown || 0)}</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="professional-metric">
+            <CardHeader>
+              <CardTitle className="text-green-400">PROBABILITY ANALYSIS</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={[
+                    { scenario: 'Bull (+15%)', probability: 0.25, color: '#10b981' },
+                    { scenario: 'Neutral (±5%)', probability: 0.50, color: '#f59e0b' },
+                    { scenario: 'Bear (-15%)', probability: 0.25, color: '#ef4444' },
+                    { scenario: `Target (${formatPercent(params.targetDecline)})`, probability: probabilityOfDecline, color: '#8b5cf6' }
+                  ]}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
+                    <XAxis dataKey="scenario" stroke="#64748b" fontSize={10} angle={-45} textAnchor="end" height={80} />
+                    <YAxis stroke="#64748b" fontSize={10} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#0a0e14', 
+                        border: '1px solid #1a1a1a',
+                        borderRadius: '8px',
+                        color: '#00ff41'
+                      }} 
+                    />
+                    <Bar 
+                      dataKey="probability" 
+                      fill="#00ff41"
+                      radius={[4, 4, 0, 0]}
+                      name="Probability"
+                    />
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>

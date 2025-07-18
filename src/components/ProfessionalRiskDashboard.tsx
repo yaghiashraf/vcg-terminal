@@ -10,7 +10,6 @@ import { formatNumber, formatPercent, formatCurrency, getRiskColor, formatLargeN
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { TrendingDown, TrendingUp, AlertTriangle, Target, Activity, BarChart3, Shield, Zap, Database, Clock, DollarSign } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import Image from 'next/image';
 
 // Client-side time display component
 const TimeDisplay: React.FC = () => {
@@ -32,16 +31,26 @@ const TimeDisplay: React.FC = () => {
 
 interface AnalysisParams {
   symbol: string;
-  targetDecline: number;
-  timeHorizon: number;
+  projectionDays: number;
   period: '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y';
+}
+
+interface PriceProjection {
+  timeframe: string;
+  bullish: number;
+  bearish: number;
+  neutral: number;
+  probability: {
+    up: number;
+    down: number;
+    neutral: number;
+  };
 }
 
 export const ProfessionalRiskDashboard: React.FC = () => {
   const [params, setParams] = useState<AnalysisParams>({
     symbol: 'SPY',
-    targetDecline: 0.05,
-    timeHorizon: 40,
+    projectionDays: 30,
     period: '1y'
   });
   
@@ -51,7 +60,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [riskEngine, setRiskEngine] = useState<AdvancedRiskEngine | null>(null);
   const [riskMetrics, setRiskMetrics] = useState<RiskMetrics | null>(null);
-  const [monteCarloResults, setMonteCarloResults] = useState<MonteCarloResult | null>(null);
+  const [priceProjections, setPriceProjections] = useState<PriceProjection[]>([]);
   const [terminalLogs, setTerminalLogs] = useState<Array<{ command: string; timestamp: Date; type: 'info' | 'success' | 'error' }>>([]);
   const [realTimePrice, setRealTimePrice] = useState<number | null>(null);
 
@@ -64,7 +73,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
     setParams(newParams);
     
     try {
-      addTerminalLog(`Initializing risk analysis for ${newParams.symbol}...`, 'info');
+      addTerminalLog(`Initializing price projection analysis for ${newParams.symbol}...`, 'info');
       
       // Fetch current quote
       addTerminalLog('Fetching real-time market data...', 'info');
@@ -106,21 +115,14 @@ export const ProfessionalRiskDashboard: React.FC = () => {
       addTerminalLog(`VaR(95%): ${formatPercent(metrics.var95)}`, 'success');
       addTerminalLog(`Beta: ${formatNumber(metrics.beta, 2)}`, 'success');
       
-      // Run Monte Carlo simulation
-      addTerminalLog('Running Monte Carlo simulation (10,000 scenarios)...', 'info');
-      const mcResults = engine.monteCarloSimulation(
-        quote.price, 
-        newParams.timeHorizon, 
-        10000, 
-        newParams.targetDecline
-      );
-      setMonteCarloResults(mcResults);
-      addTerminalLog(`Target price: $${(quote.price * (1 - newParams.targetDecline)).toFixed(2)}`, 'info');
-      addTerminalLog(`Probability of decline: ${formatPercent(mcResults.probabilities[0])}`, 'success');
-      addTerminalLog(`Expected return: $${mcResults.expectedReturn.toFixed(2)}`, 'info');
+      // Generate price projections
+      addTerminalLog('Generating price projections...', 'info');
+      const projections = generatePriceProjections(quote.price, metrics, newParams.projectionDays);
+      setPriceProjections(projections);
+      addTerminalLog(`Generated projections for ${projections.length} timeframes`, 'success');
       
-      addTerminalLog('Analysis complete. Results displayed below.', 'success');
-      toast.success('Risk analysis completed successfully');
+      addTerminalLog('Analysis complete. Projections displayed below.', 'success');
+      toast.success('Price projection analysis completed successfully');
       
     } catch (error) {
       console.error('Analysis error:', error);
@@ -129,6 +131,37 @@ export const ProfessionalRiskDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const generatePriceProjections = (currentPrice: number, metrics: RiskMetrics, days: number): PriceProjection[] => {
+    const timeframes = [
+      { days: 7, label: '1 Week' },
+      { days: 30, label: '1 Month' },
+      { days: 90, label: '3 Months' },
+      { days: days, label: `${days} Days` }
+    ];
+
+    return timeframes.map(tf => {
+      const volatility = metrics.volatility;
+      const drift = 0.0002; // Small positive drift
+      const timeScaling = Math.sqrt(tf.days / 252);
+      
+      const bullishMove = drift + volatility * timeScaling * 1.5;
+      const bearishMove = drift - volatility * timeScaling * 1.5;
+      const neutralMove = drift;
+      
+      return {
+        timeframe: tf.label,
+        bullish: currentPrice * (1 + bullishMove),
+        bearish: currentPrice * (1 + bearishMove),
+        neutral: currentPrice * (1 + neutralMove),
+        probability: {
+          up: Math.max(0.15, 0.4 - metrics.skewness * 0.1),
+          down: Math.max(0.15, 0.35 + metrics.skewness * 0.1),
+          neutral: 0.25
+        }
+      };
+    });
   };
 
   // Real-time price updates
@@ -159,31 +192,19 @@ export const ProfessionalRiskDashboard: React.FC = () => {
     }));
   }, [riskEngine, marketData]);
 
-  const distributionData = useMemo(() => {
-    if (!monteCarloResults) return [];
+  const projectionChartData = useMemo(() => {
+    if (!priceProjections.length) return [];
     
-    const scenarios = monteCarloResults.scenarios;
-    const bins = 50;
-    const min = Math.min(...scenarios);
-    const max = Math.max(...scenarios);
-    const binSize = (max - min) / bins;
-    
-    const histogram = Array(bins).fill(0);
-    scenarios.forEach(scenario => {
-      const binIndex = Math.min(Math.floor((scenario - min) / binSize), bins - 1);
-      histogram[binIndex]++;
-    });
-    
-    return histogram.map((count, index) => ({
-      price: min + (index + 0.5) * binSize,
-      frequency: count,
-      probability: count / scenarios.length
+    return priceProjections.map(proj => ({
+      timeframe: proj.timeframe,
+      bullish: proj.bullish,
+      current: realTimePrice || currentQuote?.price || 0,
+      bearish: proj.bearish,
+      neutral: proj.neutral
     }));
-  }, [monteCarloResults]);
+  }, [priceProjections, realTimePrice, currentQuote]);
 
   const currentPrice = realTimePrice || currentQuote?.price || 0;
-  const targetPrice = currentPrice * (1 - params.targetDecline);
-  const probabilityOfDecline = monteCarloResults?.probabilities[0] || 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-green-400">
@@ -192,18 +213,19 @@ export const ProfessionalRiskDashboard: React.FC = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
-              <Image
-                src="/vortex-logo.gif"
-                alt="Vortex Capital Group"
-                width={200}
-                height={60}
-                className="h-12 w-auto"
-                priority
-              />
-              <div className="h-8 w-px bg-green-400/30"></div>
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-xl">V</span>
+                </div>
+                <div className="text-left">
+                  <h2 className="text-lg font-bold text-blue-400">VORTEX CAPITAL GROUP</h2>
+                  <p className="text-xs text-gray-400">Risk Analysis Terminal</p>
+                </div>
+              </div>
+              <div className="h-8 w-px bg-blue-400/30"></div>
               <div>
-                <h1 className="text-2xl font-bold text-green-400">
-                  QUANTITATIVE RISK ANALYSIS TERMINAL
+                <h1 className="text-2xl font-bold text-blue-400">
+                  PRICE PROJECTION ANALYSIS TERMINAL
                 </h1>
                 <p className="text-sm text-gray-400">
                   Advanced Statistical Models • Real-time Market Data • Monte Carlo Simulation
@@ -211,7 +233,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
               </div>
             </div>
             <div className="text-right">
-              <div className="text-sm text-gray-400">VORTEX CAPITAL GROUP</div>
+              <div className="text-sm text-gray-400">MARKET ANALYSIS</div>
               <div className="text-xs text-gray-500">
                 <TimeDisplay />
               </div>
@@ -219,17 +241,40 @@ export const ProfessionalRiskDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Controls */}
-        <div className="mb-6">
-          <Controls
-            onAnalyze={runAnalysis}
-            loading={loading}
-            defaultValues={params}
-          />
+        {/* Controls and Analysis Log */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <div>
+            <Controls
+              onAnalyze={runAnalysis}
+              loading={loading}
+              defaultValues={params}
+            />
+          </div>
+          
+          <Terminal title="ANALYSIS LOG" className="h-96 overflow-y-auto">
+            <div className="space-y-2">
+              {terminalLogs.map((log, index) => (
+                <div key={index}>
+                  <TerminalCommand command={log.command} timestamp={log.timestamp} />
+                  <TerminalOutput type={log.type}>
+                    {log.type === 'success' ? '✓' : log.type === 'error' ? '✗' : '•'} {log.command}
+                  </TerminalOutput>
+                </div>
+              ))}
+              {loading && (
+                <TerminalOutput type="info">
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full"></div>
+                    Processing...
+                  </div>
+                </TerminalOutput>
+              )}
+            </div>
+          </Terminal>
         </div>
 
         {/* Real-time Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <Card className="professional-metric">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -245,57 +290,6 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                   )}
                 </div>
                 <Activity className="h-8 w-8 text-green-400/50" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="professional-metric">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-400 mb-1">TARGET PRICE</p>
-                  <p className="text-xl font-bold text-yellow-400 font-mono">
-                    ${formatNumber(targetPrice, 2)}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {formatPercent(params.targetDecline)} decline
-                  </p>
-                </div>
-                <Target className="h-8 w-8 text-yellow-400/50" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="professional-metric">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-400 mb-1">DECLINE PROBABILITY</p>
-                  <p className={`text-xl font-bold font-mono ${probabilityOfDecline > 0.4 ? 'text-red-400' : probabilityOfDecline > 0.2 ? 'text-yellow-400' : 'text-green-400'}`}>
-                    {formatPercent(probabilityOfDecline)}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {params.timeHorizon} day horizon
-                  </p>
-                </div>
-                <TrendingDown className="h-8 w-8 text-red-400/50" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="professional-metric">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-400 mb-1">VaR (95%)</p>
-                  <p className="text-xl font-bold text-red-400 font-mono">
-                    {formatPercent(riskMetrics?.var95 || 0)}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    1-day horizon
-                  </p>
-                </div>
-                <AlertTriangle className="h-8 w-8 text-red-400/50" />
               </div>
             </CardContent>
           </Card>
@@ -333,31 +327,123 @@ export const ProfessionalRiskDashboard: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="professional-metric">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">VaR (95%)</p>
+                  <p className="text-xl font-bold text-red-400 font-mono">
+                    {formatPercent(riskMetrics?.var95 || 0)}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    1-day horizon
+                  </p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-red-400/50" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Terminal and Advanced Metrics */}
+        {/* Price Projections */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <Terminal title="ANALYSIS LOG" className="h-96 overflow-y-auto">
-            <div className="space-y-2">
-              {terminalLogs.map((log, index) => (
-                <div key={index}>
-                  <TerminalCommand command={log.command} timestamp={log.timestamp} />
-                  <TerminalOutput type={log.type}>
-                    {log.type === 'success' ? '✓' : log.type === 'error' ? '✗' : '•'} {log.command}
-                  </TerminalOutput>
-                </div>
-              ))}
-              {loading && (
-                <TerminalOutput type="info">
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full"></div>
-                    Processing...
+          <Card className="professional-metric">
+            <CardHeader>
+              <CardTitle className="text-green-400 flex items-center gap-2">
+                <Target className="h-5 w-5" />
+                PRICE PROJECTIONS
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {priceProjections.map((proj, index) => (
+                  <div key={index} className="border border-gray-800 rounded-lg p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="text-sm font-semibold text-gray-300">{proj.timeframe}</h4>
+                      <span className="text-xs text-gray-500">Current: ${formatNumber(currentPrice, 2)}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div className="text-center">
+                        <p className="text-green-400 font-mono">${formatNumber(proj.bullish, 2)}</p>
+                        <p className="text-xs text-gray-400">Bullish</p>
+                        <p className="text-xs text-green-400">{formatPercent(proj.probability.up)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-yellow-400 font-mono">${formatNumber(proj.neutral, 2)}</p>
+                        <p className="text-xs text-gray-400">Neutral</p>
+                        <p className="text-xs text-yellow-400">{formatPercent(proj.probability.neutral)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-red-400 font-mono">${formatNumber(proj.bearish, 2)}</p>
+                        <p className="text-xs text-gray-400">Bearish</p>
+                        <p className="text-xs text-red-400">{formatPercent(proj.probability.down)}</p>
+                      </div>
+                    </div>
                   </div>
-                </TerminalOutput>
-              )}
-            </div>
-          </Terminal>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
+          <Card className="professional-metric">
+            <CardHeader>
+              <CardTitle className="text-green-400">PROJECTION CHART</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={projectionChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
+                    <XAxis dataKey="timeframe" stroke="#64748b" fontSize={12} />
+                    <YAxis stroke="#64748b" fontSize={12} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#0a0e14', 
+                        border: '1px solid #1a1a1a',
+                        borderRadius: '8px',
+                        color: '#00ff41'
+                      }} 
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="bullish" 
+                      stroke="#10b981" 
+                      strokeWidth={2}
+                      dot={{ fill: '#10b981' }}
+                      name="Bullish"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="neutral" 
+                      stroke="#f59e0b" 
+                      strokeWidth={2}
+                      dot={{ fill: '#f59e0b' }}
+                      name="Neutral"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="bearish" 
+                      stroke="#ef4444" 
+                      strokeWidth={2}
+                      dot={{ fill: '#ef4444' }}
+                      name="Bearish"
+                    />
+                    <ReferenceLine 
+                      y={currentPrice} 
+                      stroke="#00ff41" 
+                      strokeDasharray="5 5"
+                      label={{ value: "Current", position: "top" }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Advanced Analytics */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <Card className="professional-metric">
             <CardHeader>
               <CardTitle className="text-green-400 flex items-center gap-2">
@@ -406,10 +492,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
               </div>
             </CardContent>
           </Card>
-        </div>
 
-        {/* Additional Analysis */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <Card className="professional-metric">
             <CardHeader>
               <CardTitle className="text-green-400 flex items-center gap-2">
@@ -450,61 +533,12 @@ export const ProfessionalRiskDashboard: React.FC = () => {
           <Card className="professional-metric">
             <CardHeader>
               <CardTitle className="text-green-400 flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                RISK SCENARIOS
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Best Case (95%):</span>
-                  <span className="text-green-400 font-mono">
-                    {formatCurrency(monteCarloResults?.confidenceIntervals.ci95[1] || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Worst Case (95%):</span>
-                  <span className="text-red-400 font-mono">
-                    {formatCurrency(monteCarloResults?.confidenceIntervals.ci95[0] || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Best Case (99%):</span>
-                  <span className="text-green-400 font-mono">
-                    {formatCurrency(monteCarloResults?.confidenceIntervals.ci99[1] || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Worst Case (99%):</span>
-                  <span className="text-red-400 font-mono">
-                    {formatCurrency(monteCarloResults?.confidenceIntervals.ci99[0] || 0)}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="professional-metric">
-            <CardHeader>
-              <CardTitle className="text-green-400 flex items-center gap-2">
                 <DollarSign className="h-5 w-5" />
-                PROFIT/LOSS ANALYSIS
+                POSITION ANALYSIS
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Potential Loss:</span>
-                  <span className="text-red-400 font-mono">
-                    {formatCurrency(currentPrice * params.targetDecline)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Risk/Reward:</span>
-                  <span className="text-yellow-400 font-mono">
-                    {formatNumber((params.targetDecline / (riskMetrics?.volatility || 0.1)) * 100, 2)}%
-                  </span>
-                </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Position Size:</span>
                   <span className="text-green-400 font-mono">
@@ -512,9 +546,25 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Capital at Risk:</span>
+                  <span className="text-gray-400">Capital Invested:</span>
+                  <span className="text-blue-400 font-mono">
+                    {formatCurrency(Math.floor(10000 / currentPrice) * currentPrice)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Daily VaR:</span>
                   <span className="text-red-400 font-mono">
-                    {formatCurrency(Math.floor(10000 / currentPrice) * currentPrice * params.targetDecline)}
+                    {formatCurrency(Math.floor(10000 / currentPrice) * currentPrice * (riskMetrics?.var95 || 0))}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Risk Score:</span>
+                  <span className={`font-mono ${
+                    (riskMetrics?.var95 || 0) > 0.05 ? 'text-red-400' : 
+                    (riskMetrics?.var95 || 0) > 0.02 ? 'text-yellow-400' : 'text-green-400'
+                  }`}>
+                    {(riskMetrics?.var95 || 0) > 0.05 ? 'HIGH' : 
+                     (riskMetrics?.var95 || 0) > 0.02 ? 'MEDIUM' : 'LOW'}
                   </span>
                 </div>
               </div>
@@ -559,63 +609,15 @@ export const ProfessionalRiskDashboard: React.FC = () => {
 
           <Card className="professional-metric">
             <CardHeader>
-              <CardTitle className="text-green-400">MONTE CARLO DISTRIBUTION</CardTitle>
+              <CardTitle className="text-green-400">PRICE MOMENTUM</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={distributionData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
-                    <XAxis dataKey="price" stroke="#64748b" fontSize={12} />
-                    <YAxis stroke="#64748b" fontSize={12} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#0a0e14', 
-                        border: '1px solid #1a1a1a',
-                        borderRadius: '8px',
-                        color: '#00ff41'
-                      }} 
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="frequency" 
-                      stroke="#00ff41" 
-                      fill="#00ff41"
-                      fillOpacity={0.3}
-                      name="Frequency"
-                    />
-                    <ReferenceLine 
-                      x={targetPrice} 
-                      stroke="#ff3333" 
-                      strokeDasharray="5 5"
-                      label={{ value: "Target", position: "top" }}
-                    />
-                    <ReferenceLine 
-                      x={currentPrice} 
-                      stroke="#00ff41" 
-                      strokeDasharray="5 5"
-                      label={{ value: "Current", position: "top" }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Additional Advanced Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <Card className="professional-metric">
-            <CardHeader>
-              <CardTitle className="text-green-400">PRICE MOMENTUM & RETURNS</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={volatilityData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
-                    <XAxis dataKey="date" stroke="#64748b" fontSize={10} />
-                    <YAxis stroke="#64748b" fontSize={10} />
+                    <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
+                    <YAxis stroke="#64748b" fontSize={12} />
                     <Tooltip 
                       contentStyle={{ 
                         backgroundColor: '#0a0e14', 
@@ -645,146 +647,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
               </div>
             </CardContent>
           </Card>
-
-          <Card className="professional-metric">
-            <CardHeader>
-              <CardTitle className="text-green-400">RISK METRICS HEATMAP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-400">VaR 95%</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-20 h-3 bg-gray-800 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${getRiskColor(riskMetrics?.var95 || 0, 'var')}`} style={{width: `${Math.min((riskMetrics?.var95 || 0) * 1000, 100)}%`}}></div>
-                      </div>
-                      <span className="text-sm font-mono text-white min-w-[60px]">{formatPercent(riskMetrics?.var95 || 0)}</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-400">Volatility</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-20 h-3 bg-gray-800 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${getRiskColor(riskMetrics?.volatility || 0, 'volatility')}`} style={{width: `${Math.min((riskMetrics?.volatility || 0) * 200, 100)}%`}}></div>
-                      </div>
-                      <span className="text-sm font-mono text-white min-w-[60px]">{formatPercent(riskMetrics?.volatility || 0)}</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-400">Beta</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-20 h-3 bg-gray-800 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${getRiskColor(riskMetrics?.beta || 1, 'beta')}`} style={{width: `${Math.min(Math.abs(riskMetrics?.beta || 1) * 50, 100)}%`}}></div>
-                      </div>
-                      <span className="text-sm font-mono text-white min-w-[60px]">{formatNumber(riskMetrics?.beta || 1, 2)}</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-400">Sharpe Ratio</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-20 h-3 bg-gray-800 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${getRiskColor(riskMetrics?.sharpeRatio || 0, 'sharpe')}`} style={{width: `${Math.min(Math.max((riskMetrics?.sharpeRatio || 0) * 50, 0), 100)}%`}}></div>
-                      </div>
-                      <span className="text-sm font-mono text-white min-w-[60px]">{formatNumber(riskMetrics?.sharpeRatio || 0, 2)}</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-400">Max Drawdown</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-20 h-3 bg-gray-800 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${getRiskColor(riskMetrics?.maxDrawdown || 0, 'drawdown')}`} style={{width: `${Math.min((riskMetrics?.maxDrawdown || 0) * 200, 100)}%`}}></div>
-                      </div>
-                      <span className="text-sm font-mono text-white min-w-[60px]">{formatPercent(riskMetrics?.maxDrawdown || 0)}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 pt-3 border-t border-gray-800">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-green-400">Low Risk</span>
-                    <span className="text-yellow-400">Medium Risk</span>
-                    <span className="text-red-400">High Risk</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="professional-metric">
-            <CardHeader>
-              <CardTitle className="text-green-400">PROBABILITY ANALYSIS</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={[
-                    { scenario: 'Bull (+15%)', probability: 0.25, color: '#10b981' },
-                    { scenario: 'Neutral (±5%)', probability: 0.50, color: '#f59e0b' },
-                    { scenario: 'Bear (-15%)', probability: 0.25, color: '#ef4444' },
-                    { scenario: `Target (${formatPercent(params.targetDecline)})`, probability: probabilityOfDecline, color: '#8b5cf6' }
-                  ]}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
-                    <XAxis dataKey="scenario" stroke="#64748b" fontSize={10} angle={-45} textAnchor="end" height={80} />
-                    <YAxis stroke="#64748b" fontSize={10} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#0a0e14', 
-                        border: '1px solid #1a1a1a',
-                        borderRadius: '8px',
-                        color: '#00ff41'
-                      }} 
-                    />
-                    <Bar 
-                      dataKey="probability" 
-                      fill="#00ff41"
-                      radius={[4, 4, 0, 0]}
-                      name="Probability"
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
         </div>
-
-        {/* Summary */}
-        <Card className="professional-metric">
-          <CardHeader>
-            <CardTitle className="text-green-400">RISK ASSESSMENT SUMMARY</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="text-center">
-                <div className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${
-                  probabilityOfDecline > 0.4 ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                  probabilityOfDecline > 0.2 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
-                  'bg-green-500/20 text-green-400 border border-green-500/30'
-                }`}>
-                  {probabilityOfDecline > 0.4 ? 'HIGH RISK' : probabilityOfDecline > 0.2 ? 'MEDIUM RISK' : 'LOW RISK'}
-                </div>
-                <p className="text-xs text-gray-400 mt-2">Risk Classification</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-green-400 font-mono">
-                  {formatNumber(params.timeHorizon)}
-                </p>
-                <p className="text-xs text-gray-400">Days to Analysis Date</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-yellow-400 font-mono">
-                  {formatPercent(params.targetDecline)}
-                </p>
-                <p className="text-xs text-gray-400">Required Decline</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-blue-400 font-mono">
-                  {formatCurrency(monteCarloResults?.expectedReturn || 0)}
-                </p>
-                <p className="text-xs text-gray-400">Expected Price</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

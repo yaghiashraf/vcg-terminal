@@ -6,8 +6,7 @@ import { cn } from '@/lib/utils';
 
 const analysisSchema = z.object({
   symbol: z.string().min(1, 'Symbol is required').max(10, 'Symbol too long'),
-  targetDecline: z.number().min(0.01).max(0.99),
-  timeHorizon: z.number().min(1).max(365),
+  projectionDays: z.number().min(1).max(365),
   period: z.enum(['1mo', '3mo', '6mo', '1y', '2y', '5y']),
 });
 
@@ -24,8 +23,7 @@ export const Controls: React.FC<ControlsProps> = ({
   loading = false,
   defaultValues = {
     symbol: 'SPY',
-    targetDecline: 0.05,
-    timeHorizon: 40,
+    projectionDays: 30,
     period: '1y'
   }
 }) => {
@@ -49,13 +47,13 @@ export const Controls: React.FC<ControlsProps> = ({
     <div className="professional-metric p-6 rounded-lg">
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-green-400 mb-2">
-          RISK ANALYSIS PARAMETERS
+          PRICE PROJECTION PARAMETERS
         </h3>
         <div className="h-px bg-gradient-to-r from-green-400 to-transparent"></div>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Symbol Input */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -76,54 +74,26 @@ export const Controls: React.FC<ControlsProps> = ({
             )}
           </div>
 
-          {/* Target Decline */}
+          {/* Projection Days */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
-              TARGET DECLINE (%)
+              PROJECTION DAYS
             </label>
             <input
-              {...register('targetDecline', { valueAsNumber: true })}
-              type="number"
-              step="0.01"
-              min="0.01"
-              max="0.99"
-              placeholder="0.05"
-              className={cn(
-                'w-full px-3 py-2 bg-black border rounded font-mono text-green-400',
-                'focus:outline-none focus:ring-2 focus:ring-green-400/50',
-                errors.targetDecline ? 'border-red-500' : 'border-gray-600'
-              )}
-            />
-            {errors.targetDecline && (
-              <p className="text-red-400 text-xs mt-1">
-                {errors.targetDecline.message}
-              </p>
-            )}
-            <p className="text-xs text-gray-500 mt-1">
-              Current: {((watchedValues.targetDecline || 0) * 100).toFixed(1)}%
-            </p>
-          </div>
-
-          {/* Time Horizon */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              TIME HORIZON (Days)
-            </label>
-            <input
-              {...register('timeHorizon', { valueAsNumber: true })}
+              {...register('projectionDays', { valueAsNumber: true })}
               type="number"
               min="1"
               max="365"
-              placeholder="40"
+              placeholder="30"
               className={cn(
                 'w-full px-3 py-2 bg-black border rounded font-mono text-green-400',
                 'focus:outline-none focus:ring-2 focus:ring-green-400/50',
-                errors.timeHorizon ? 'border-red-500' : 'border-gray-600'
+                errors.projectionDays ? 'border-red-500' : 'border-gray-600'
               )}
             />
-            {errors.timeHorizon && (
+            {errors.projectionDays && (
               <p className="text-red-400 text-xs mt-1">
-                {errors.timeHorizon.message}
+                {errors.projectionDays.message}
               </p>
             )}
           </div>
@@ -177,15 +147,15 @@ export const Controls: React.FC<ControlsProps> = ({
         <div className="text-xs text-gray-400 font-mono">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <span className="text-gray-500">Target Price:</span>
+              <span className="text-gray-500">Projection Period:</span>
               <span className="text-green-400 ml-2">
-                ${(600 * (1 - (watchedValues.targetDecline || 0))).toFixed(2)}
+                {watchedValues.projectionDays || 30} days
               </span>
             </div>
             <div>
-              <span className="text-gray-500">Analysis Date:</span>
+              <span className="text-gray-500">Target Date:</span>
               <span className="text-green-400 ml-2">
-                {new Date(Date.now() + (watchedValues.timeHorizon || 0) * 24 * 60 * 60 * 1000)
+                {new Date(Date.now() + (watchedValues.projectionDays || 30) * 24 * 60 * 60 * 1000)
                   .toLocaleDateString()}
               </span>
             </div>

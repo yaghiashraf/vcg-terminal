@@ -117,6 +117,13 @@ export const ProfessionalRiskDashboard: React.FC = () => {
       setPriceProjections(projections);
       addTerminalLog(`Generated projections for ${projections.length} timeframes using AI models`, 'success');
       
+      // Log realistic projection ranges for validation
+      projections.forEach(proj => {
+        const bullishChange = ((proj.bullish - quote.price) / quote.price * 100).toFixed(2);
+        const bearishChange = ((proj.bearish - quote.price) / quote.price * 100).toFixed(2);
+        addTerminalLog(`${proj.timeframe}: +${bullishChange}% / ${bearishChange}%`, 'info');
+      });
+      
       addTerminalLog('Analysis complete. Projections displayed below.', 'success');
       toast.success('Price projection analysis completed successfully');
       
@@ -129,7 +136,7 @@ export const ProfessionalRiskDashboard: React.FC = () => {
     }
   };
 
-  // Advanced Prophet-inspired projection algorithm with Markov Chain Monte Carlo
+  // Advanced Prophet-inspired projection algorithm with realistic short-term constraints
   const generateAdvancedPriceProjections = (currentPrice: number, metrics: RiskMetrics, historicalData: MarketData[]): PriceProjection[] => {
     const timeframes = [
       { days: 1, label: '1 Day' },
@@ -146,43 +153,54 @@ export const ProfessionalRiskDashboard: React.FC = () => {
     );
     
     const trendStrength = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-    const momentum = returns.slice(-20).reduce((sum, r) => sum + r, 0) / 20; // Recent momentum
+    const momentum = returns.slice(-5).reduce((sum, r) => sum + r, 0) / 5; // Very recent momentum
     
-    // Markov Chain state transitions
-    const volatilityRegime = metrics.volatility > 0.25 ? 'high' : metrics.volatility > 0.15 ? 'medium' : 'low';
-    const regimeMultiplier = { high: 1.3, medium: 1.0, low: 0.7 }[volatilityRegime];
+    // Realistic volatility scaling with time constraints
+    const annualVolatility = metrics.volatility;
+    const volatilityRegime = annualVolatility > 0.25 ? 'high' : annualVolatility > 0.15 ? 'medium' : 'low';
+    const regimeMultiplier = { high: 1.2, medium: 1.0, low: 0.8 }[volatilityRegime];
 
     return timeframes.map(tf => {
-      const volatility = metrics.volatility * regimeMultiplier;
+      // Realistic time scaling with diminishing short-term volatility
       const timeScaling = Math.sqrt(tf.days / 252);
+      const adjustedVolatility = annualVolatility * regimeMultiplier * timeScaling;
       
-      // Prophet-style trend decomposition
-      const seasonalComponent = Math.sin((tf.days / 365) * 2 * Math.PI) * 0.01;
-      const trendComponent = trendStrength * tf.days / 252;
-      const momentumComponent = momentum * Math.log(tf.days + 1) * 0.5;
+      // Short-term constraints to prevent unrealistic movements
+      const maxDailyMove = tf.days === 1 ? 0.03 : tf.days <= 7 ? 0.05 : 0.15; // 3% max for 1-day, 5% for 7-day, 15% for longer
+      const constrainedVolatility = Math.min(adjustedVolatility, maxDailyMove);
       
-      // Advanced drift calculation with mean reversion
-      const meanReversion = -0.1 * Math.log(currentPrice / (historicalData[historicalData.length - 1]?.close || currentPrice));
-      const drift = trendComponent + momentumComponent + seasonalComponent + meanReversion;
+      // Prophet-style trend decomposition with time-appropriate scaling
+      const seasonalComponent = Math.sin((tf.days / 365) * 2 * Math.PI) * 0.005; // Reduced seasonal impact
+      const trendComponent = trendStrength * (tf.days / 252) * 0.7; // Reduced trend impact
+      const momentumComponent = momentum * Math.log(tf.days + 1) * 0.3; // Reduced momentum impact
       
-      // Markov Chain Monte Carlo simulation
+      // Realistic drift calculation
+      const drift = trendComponent + momentumComponent + seasonalComponent;
+      
+      // Markov Chain Monte Carlo simulation with realistic constraints
       const mcmcIterations = 1000;
       let bullishOutcomes = 0;
       let bearishOutcomes = 0;
       let neutralOutcomes = 0;
       
       for (let i = 0; i < mcmcIterations; i++) {
-        const randomWalk = (Math.random() - 0.5) * 2 * volatility * timeScaling;
+        const randomWalk = (Math.random() - 0.5) * 2 * constrainedVolatility;
         const projectedReturn = drift + randomWalk;
         
-        if (projectedReturn > 0.02) bullishOutcomes++;
-        else if (projectedReturn < -0.02) bearishOutcomes++;
+        // Realistic thresholds based on timeframe
+        const bullishThreshold = tf.days === 1 ? 0.005 : tf.days <= 7 ? 0.01 : 0.02;
+        const bearishThreshold = tf.days === 1 ? -0.005 : tf.days <= 7 ? -0.01 : -0.02;
+        
+        if (projectedReturn > bullishThreshold) bullishOutcomes++;
+        else if (projectedReturn < bearishThreshold) bearishOutcomes++;
         else neutralOutcomes++;
       }
       
-      const bullishMove = drift + volatility * timeScaling * 1.96; // 95% confidence
-      const bearishMove = drift - volatility * timeScaling * 1.96;
-      const neutralMove = drift + (seasonalComponent * 0.5); // More realistic neutral based on trend
+      // Realistic confidence intervals (not 95% which is too extreme for short-term)
+      const confidenceLevel = tf.days === 1 ? 0.5 : tf.days <= 7 ? 0.8 : 1.2;
+      const bullishMove = Math.min(drift + constrainedVolatility * confidenceLevel, maxDailyMove);
+      const bearishMove = Math.max(drift - constrainedVolatility * confidenceLevel, -maxDailyMove);
+      const neutralMove = drift * 0.5; // Conservative neutral estimate
       
       return {
         timeframe: tf.label,
@@ -503,9 +521,16 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                       stroke="#64748b" 
                       fontSize={12}
                       domain={[
-                        (dataMin: number) => Math.max(0, dataMin * 0.7), // 30% below minimum
-                        (dataMax: number) => dataMax * 1.3 // 30% above maximum
+                        (dataMin: number) => {
+                          const minPrice = Math.min(dataMin, currentPrice);
+                          return Math.max(0, minPrice * 0.85); // 15% below minimum, ensuring we don't go negative
+                        },
+                        (dataMax: number) => {
+                          const maxPrice = Math.max(dataMax, currentPrice);
+                          return maxPrice * 1.15; // 15% above maximum
+                        }
                       ]}
+                      tickFormatter={(value) => `$${value.toFixed(2)}`}
                     />
                     <Tooltip 
                       contentStyle={{ 

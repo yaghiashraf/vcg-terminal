@@ -1286,33 +1286,32 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                     <div>
                       <span className="text-gray-400">Target Price:</span>
                       <span className="text-green-400 font-mono ml-2">
-                        ${formatNumber(
-                          trendAnalysis?.direction === 'bullish' 
-                            ? currentPrice * (1 + (trendAnalysis?.strength || 0.05) * 3)  // BUY: target higher
-                            : trendAnalysis?.direction === 'bearish' 
-                            ? currentPrice * (1 - (trendAnalysis?.strength || 0.05) * 3)  // SHORT: target lower
-                            : currentPrice, // HOLD: no target
-                          2
-                        )}
+                        {trendAnalysis?.direction === 'bullish' 
+                          ? `$${formatNumber(currentPrice * (1 + (trendAnalysis?.strength || 0.05) * 3), 2)}`  // BUY: target higher
+                          : trendAnalysis?.direction === 'bearish' 
+                          ? `$${formatNumber(currentPrice * (1 - (trendAnalysis?.strength || 0.05) * 3), 2)}`  // SHORT: target lower
+                          : 'No Target'  // HOLD: no specific target
+                        }
                       </span>
                     </div>
                     <div>
                       <span className="text-gray-400">Stop Loss:</span>
                       <span className="text-red-400 font-mono ml-2">
-                        ${formatNumber(
-                          trendAnalysis?.direction === 'bullish' 
-                            ? currentPrice * (1 - (riskMetrics?.var95 || 0.05))  // BUY: stop lower
-                            : trendAnalysis?.direction === 'bearish' 
-                            ? currentPrice * (1 + (riskMetrics?.var95 || 0.05))  // SHORT: stop higher
-                            : currentPrice, // HOLD: no stop
-                          2
-                        )}
+                        {trendAnalysis?.direction === 'bullish' 
+                          ? `$${formatNumber(currentPrice * (1 - (riskMetrics?.var95 || 0.05)), 2)}`  // BUY: stop lower
+                          : trendAnalysis?.direction === 'bearish' 
+                          ? `$${formatNumber(currentPrice * (1 + (riskMetrics?.var95 || 0.05)), 2)}`  // SHORT: stop higher
+                          : 'No Stop'  // HOLD: no specific stop
+                        }
                       </span>
                     </div>
                     <div>
                       <span className="text-gray-400">Hold Period:</span>
                       <span className="text-blue-400 font-mono ml-2">
-                        {Math.round(15 + Math.random() * 20)} days
+                        {trendAnalysis?.direction === 'bullish' || trendAnalysis?.direction === 'bearish' 
+                          ? `${Math.round(15 + Math.random() * 20)} days`
+                          : 'Monitor for signals'
+                        }
                       </span>
                     </div>
                   </div>
@@ -1353,7 +1352,10 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                       trendAnalysis?.direction === 'bearish' ? 'Bearish reversal signal active. Short signal with downside target and protective stop above.' : 
                       'Neutral market conditions. Hold position and monitor for signal changes.'
                     } 
-                    Expected return: {formatPercent((trendAnalysis?.strength || 0.05) * 3)} over {Math.round(15 + Math.random() * 20)} days.
+                    {trendAnalysis?.direction === 'bullish' || trendAnalysis?.direction === 'bearish' 
+                      ? `Expected return: ${formatPercent((trendAnalysis?.strength || 0.05) * 3)} over ${Math.round(15 + Math.random() * 20)} days.`
+                      : 'Wait for clear directional signal before taking position.'
+                    }
                   </p>
                 </div>
               </div>

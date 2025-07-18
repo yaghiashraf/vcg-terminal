@@ -8,8 +8,15 @@ import { AdvancedRiskEngine, MarketData, RiskMetrics, MonteCarloResult } from '@
 import { marketDataService } from '@/lib/api/marketData';
 import { formatNumber, formatPercent, formatCurrency, getRiskColor, formatLargeNumber } from '@/lib/utils';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { TrendingDown, TrendingUp, AlertTriangle, Target, Activity, BarChart3, Shield, Zap, Database, Clock, DollarSign } from 'lucide-react';
+import { TrendingDown, TrendingUp, AlertTriangle, Target, Activity, BarChart3, Shield, Zap, Database, Clock, DollarSign, Box, BarChart2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import dynamic from 'next/dynamic';
+
+// Dynamic import for Plotly to avoid SSR issues
+const Plot = dynamic(() => import('react-plotly.js'), { 
+  ssr: false,
+  loading: () => <div className="h-96 bg-gray-800/30 rounded-lg flex items-center justify-center text-gray-400">Loading 3D visualization...</div>
+}) as any;
 
 // Client-side time display component
 const TimeDisplay: React.FC = () => {
@@ -65,6 +72,18 @@ export const ProfessionalRiskDashboard: React.FC = () => {
     confidence: number;
     avgReturn: number;
   } | null>(null);
+  const [volumeProfile, setVolumeProfile] = useState<{
+    priceLevel: number;
+    volume: number;
+    accumulationZone: boolean;
+    supportResistance: 'support' | 'resistance' | 'neutral';
+  }[]>([]);
+  const [accumulationZones, setAccumulationZones] = useState<{
+    priceLevel: number;
+    strength: number;
+    volume: number;
+    type: 'accumulation' | 'distribution';
+  }[]>([]);
 
   const addTerminalLog = (command: string, type: 'info' | 'success' | 'error' = 'info') => {
     setTerminalLogs(prev => [...prev, { command, timestamp: new Date(), type }]);
@@ -108,6 +127,79 @@ export const ProfessionalRiskDashboard: React.FC = () => {
       confidence,
       avgReturn: avgRecentReturn
     };
+  };
+
+  // Volume Profile Analysis - detects accumulation/distribution zones
+  const calculateVolumeProfile = (historicalData: MarketData[]) => {
+    if (historicalData.length < 30) return { profile: [], zones: [] };
+    
+    // Create price bins for volume profiling
+    const prices = historicalData.map(d => d.close);
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    const binSize = (maxPrice - minPrice) / 20; // 20 price levels
+    
+    const volumeByPrice: { [key: number]: number } = {};
+    const accumulationData: { [key: number]: { volume: number; bullishVolume: number; bearishVolume: number } } = {};
+    
+    // Calculate volume at each price level
+    historicalData.forEach(candle => {
+      const priceBin = Math.floor((candle.close - minPrice) / binSize) * binSize + minPrice;
+      const volume = candle.volume || 0;
+      
+      volumeByPrice[priceBin] = (volumeByPrice[priceBin] || 0) + volume;
+      
+      // Determine if candle is bullish or bearish
+      const isBullish = candle.close > candle.open;
+      if (!accumulationData[priceBin]) {
+        accumulationData[priceBin] = { volume: 0, bullishVolume: 0, bearishVolume: 0 };
+      }
+      
+      accumulationData[priceBin].volume += volume;
+      if (isBullish) {
+        accumulationData[priceBin].bullishVolume += volume;
+      } else {
+        accumulationData[priceBin].bearishVolume += volume;
+      }
+    });
+    
+    // Calculate average volume for threshold
+    const avgVolume = Object.values(volumeByPrice).reduce((sum, vol) => sum + vol, 0) / Object.keys(volumeByPrice).length;
+    
+    // Create volume profile
+    const profile = Object.entries(volumeByPrice).map(([price, volume]) => {
+      const priceLevel = parseFloat(price);
+      const accData = accumulationData[priceLevel];
+      const bullishRatio = accData ? accData.bullishVolume / accData.volume : 0.5;
+      
+      return {
+        priceLevel,
+        volume,
+        accumulationZone: volume > avgVolume * 1.5, // High volume areas
+        supportResistance: volume > avgVolume * 2 ? 
+          (bullishRatio > 0.6 ? 'support' : bullishRatio < 0.4 ? 'resistance' : 'neutral') : 'neutral' as 'support' | 'resistance' | 'neutral'
+      };
+    }).sort((a, b) => a.priceLevel - b.priceLevel);
+    
+    // Detect accumulation/distribution zones
+    const zones = Object.entries(accumulationData)
+      .filter(([_, data]) => data.volume > avgVolume * 1.3)
+      .map(([price, data]) => {
+        const priceLevel = parseFloat(price);
+        const bullishRatio = data.bullishVolume / data.volume;
+        const strength = data.volume / avgVolume;
+        
+        return {
+          priceLevel,
+          strength,
+          volume: data.volume,
+          type: bullishRatio > 0.65 ? 'accumulation' as const : 'distribution' as const
+        };
+      })
+      .sort((a, b) => b.strength - a.strength) // Sort by strength
+      .slice(0, 5); // Top 5 zones
+    
+    return { profile, zones };
   };
 
   const runAnalysis = async (newParams: AnalysisParams) => {
@@ -180,8 +272,16 @@ export const ProfessionalRiskDashboard: React.FC = () => {
         addTerminalLog(`${proj.timeframe}: +${bullishChange}% / ${bearishChange}%`, 'info');
       });
       
-      addTerminalLog('Analysis complete. Projections displayed below.', 'success');
-      toast.success('Price projection analysis completed successfully');
+      // Calculate volume profile and accumulation zones
+      addTerminalLog('Computing 3D volume profile analysis...', 'info');
+      const volumeAnalysis = calculateVolumeProfile(data);
+      setVolumeProfile(volumeAnalysis.profile);
+      setAccumulationZones(volumeAnalysis.zones);
+      addTerminalLog(`Detected ${volumeAnalysis.zones.length} accumulation/distribution zones`, 'success');
+      addTerminalLog(`Volume profile calculated for ${volumeAnalysis.profile.length} price levels`, 'success');
+      
+      addTerminalLog('Analysis complete. 3D visualizations ready.', 'success');
+      toast.success('Advanced 3D analysis completed successfully');
       
     } catch (error) {
       console.error('Analysis error:', error);
@@ -957,6 +1057,183 @@ export const ProfessionalRiskDashboard: React.FC = () => {
                     />
                   </LineChart>
                 </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="professional-metric">
+            <CardHeader>
+              <CardTitle className="text-green-400 flex items-center gap-2">
+                <BarChart2 className="h-5 w-5" />
+                ACCUMULATION ZONES SUMMARY
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 text-sm">
+                {accumulationZones.slice(0, 3).map((zone, index) => (
+                  <div key={index} className="flex justify-between items-center p-2 bg-gray-800/30 rounded">
+                    <div>
+                      <span className="text-gray-400">Zone {index + 1}:</span>
+                      <span className="text-green-400 font-mono ml-2">
+                        ${formatNumber(zone.priceLevel, 2)}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-xs font-semibold ${zone.type === 'accumulation' ? 'text-green-400' : 'text-red-400'}`}>
+                        {zone.type.toUpperCase()}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        Strength: {formatNumber(zone.strength, 1)}x
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {accumulationZones.length === 0 && (
+                  <div className="text-center text-gray-500 py-4">
+                    No significant accumulation zones detected
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 3D Volume Profile Analysis */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <Card className="professional-metric">
+            <CardHeader>
+              <CardTitle className="text-green-400 flex items-center gap-2">
+                <Box className="h-5 w-5" />
+                3D VOLUME PROFILE ANALYSIS
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-96">
+                {volumeProfile.length > 0 && (
+                  <Plot
+                    data={[
+                      {
+                        type: 'scatter3d',
+                        x: volumeProfile.map(v => v.priceLevel),
+                        y: volumeProfile.map(v => v.volume),
+                        z: volumeProfile.map((v, i) => i),
+                        mode: 'markers',
+                        marker: {
+                          size: 8,
+                          color: volumeProfile.map(v => 
+                            v.supportResistance === 'support' ? '#10b981' : 
+                            v.supportResistance === 'resistance' ? '#ef4444' : 
+                            v.accumulationZone ? '#f59e0b' : '#64748b'
+                          ),
+                          colorscale: [
+                            [0, '#64748b'],
+                            [0.33, '#f59e0b'],
+                            [0.66, '#10b981'],
+                            [1, '#ef4444']
+                          ],
+                          showscale: false
+                        },
+                        text: volumeProfile.map(v => 
+                          `Price: $${v.priceLevel.toFixed(2)}<br>Volume: ${formatLargeNumber(v.volume)}<br>Type: ${v.supportResistance}`
+                        ),
+                        hovertemplate: '%{text}<extra></extra>',
+                        name: 'Volume Profile'
+                      }
+                    ]}
+                    layout={{
+                      scene: {
+                        xaxis: { title: 'Price Level ($)', color: '#64748b' },
+                        yaxis: { title: 'Volume', color: '#64748b' },
+                        zaxis: { title: 'Time Sequence', color: '#64748b' },
+                        bgcolor: '#0a0e14',
+                        camera: {
+                          eye: { x: 1.5, y: 1.5, z: 1.5 }
+                        }
+                      },
+                      paper_bgcolor: '#0a0e14',
+                      plot_bgcolor: '#0a0e14',
+                      font: { color: '#64748b', size: 10 },
+                      margin: { l: 0, r: 0, b: 0, t: 0 }
+                    }}
+                    config={{
+                      displayModeBar: false,
+                      staticPlot: false
+                    }}
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="professional-metric">
+            <CardHeader>
+              <CardTitle className="text-green-400 flex items-center gap-2">
+                <BarChart2 className="h-5 w-5" />
+                ACCUMULATION/DISTRIBUTION ZONES
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-96">
+                {accumulationZones.length > 0 && (
+                  <Plot
+                    data={[
+                      {
+                        type: 'surface',
+                        x: accumulationZones.map(z => z.priceLevel),
+                        y: accumulationZones.map(z => z.volume),
+                        z: accumulationZones.map((z, i) => Array(accumulationZones.length).fill(z.strength)),
+                        colorscale: [
+                          [0, '#ef4444'],
+                          [0.5, '#f59e0b'],
+                          [1, '#10b981']
+                        ],
+                        showscale: false,
+                        opacity: 0.8,
+                        name: 'Accumulation Surface'
+                      },
+                      {
+                        type: 'scatter3d',
+                        x: accumulationZones.map(z => z.priceLevel),
+                        y: accumulationZones.map(z => z.volume),
+                        z: accumulationZones.map(z => z.strength),
+                        mode: 'markers+text',
+                        marker: {
+                          size: 12,
+                          color: accumulationZones.map(z => z.type === 'accumulation' ? '#10b981' : '#ef4444'),
+                          symbol: 'diamond'
+                        },
+                        text: accumulationZones.map(z => z.type === 'accumulation' ? 'ACC' : 'DIST'),
+                        textposition: 'top center',
+                        textfont: { color: '#00ff41', size: 8 },
+                        hovertemplate: accumulationZones.map(z => 
+                          `Price: $${z.priceLevel.toFixed(2)}<br>Volume: ${formatLargeNumber(z.volume)}<br>Type: ${z.type.toUpperCase()}<br>Strength: ${z.strength.toFixed(2)}`
+                        ),
+                        name: 'Key Zones'
+                      }
+                    ]}
+                    layout={{
+                      scene: {
+                        xaxis: { title: 'Price Level ($)', color: '#64748b' },
+                        yaxis: { title: 'Volume', color: '#64748b' },
+                        zaxis: { title: 'Strength', color: '#64748b' },
+                        bgcolor: '#0a0e14',
+                        camera: {
+                          eye: { x: 1.5, y: 1.5, z: 1.5 }
+                        }
+                      },
+                      paper_bgcolor: '#0a0e14',
+                      plot_bgcolor: '#0a0e14',
+                      font: { color: '#64748b', size: 10 },
+                      margin: { l: 0, r: 0, b: 0, t: 0 }
+                    }}
+                    config={{
+                      displayModeBar: false,
+                      staticPlot: false
+                    }}
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                )}
               </div>
             </CardContent>
           </Card>
